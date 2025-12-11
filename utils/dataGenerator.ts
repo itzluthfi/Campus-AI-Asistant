@@ -3,6 +3,8 @@ import { MockDatabase, Student, Lecturer, Course, Grade, TuitionPayment, Admin, 
 const MAJORS = ['Teknik Informatika', 'Sistem Informasi', 'Ilmu Komputer', 'Teknik Elektro', 'Manajemen Bisnis'];
 const FIRST_NAMES = ['Budi', 'Siti', 'Rizky', 'Dewi', 'Andi', 'Rina', 'Bayu', 'Putri', 'Dimas', 'Eka', 'Fajar', 'Gita', 'Hendra', 'Indah'];
 const LAST_NAMES = ['Santoso', 'Aminah', 'Pratama', 'Lestari', 'Kusuma', 'Wahyuni', 'Saputra', 'Wijaya', 'Nugroho', 'Hidayat', 'Utami', 'Siregar'];
+const CITIES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Makassar', 'Yogyakarta', 'Semarang', 'Denpasar', 'Palembang', 'Malang', 'Bekasi', 'Depok'];
+
 const COURSE_NAMES = [
   'Pemrograman Web', 'Basis Data', 'Kecerdasan Buatan', 'Algoritma', 'Struktur Data', 
   'Jaringan Komputer', 'Sistem Operasi', 'Matematika Diskrit', 'Statistika', 'Etika Profesi',
@@ -152,7 +154,8 @@ export const generateMockDatabase = (): MockDatabase => {
       major: getRandomElement(MAJORS),
       semester: semester,
       gpa: parseFloat((Math.random() * (4.0 - 2.5) + 2.5).toFixed(2)),
-      email: `${firstName.toLowerCase()}.${nim}@student.univ.ac.id`
+      email: `${firstName.toLowerCase()}.${nim}@student.univ.ac.id`,
+      origin: getRandomElement(CITIES) // Assign random city
     });
 
     // Grades

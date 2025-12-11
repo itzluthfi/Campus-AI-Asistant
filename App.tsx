@@ -3,27 +3,47 @@ import DatabaseView from './components/DatabaseView';
 import ChatInterface from './components/ChatInterface';
 import { generateMockDatabase } from './utils/dataGenerator';
 import { MockDatabase, UserSession } from './types';
+import { getSession, clearSession } from './utils/storage';
+import { initializePublicSDK } from './services/publicSDK';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'database' | 'chat'>('chat');
   const [database, setDatabase] = useState<MockDatabase | null>(null);
   const [user, setUser] = useState<UserSession | null>(null);
 
-  // Generate Data on Mount
+  // 1. Initialize Data & Restore Session
   useEffect(() => {
+    // Generate DB
     const data = generateMockDatabase();
     setDatabase(data);
+
+    // Initialize Public API (SDK) for external access
+    initializePublicSDK(data);
+
+    // Restore Session
+    const savedUser = getSession();
+    if (savedUser) {
+      setUser(savedUser);
+    }
   }, []);
 
-  if (!database) return <div className="flex h-screen items-center justify-center">Loading Database...</div>;
+  const handleLogout = () => {
+    setUser(null);
+    clearSession();
+  };
+
+  if (!database) return <div className="flex h-screen items-center justify-center bg-gray-100 text-gray-600 animate-pulse">Initializing Campus System...</div>;
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-gray-100 overflow-hidden">
       
       <aside className="w-full md:w-64 bg-slate-900 text-white flex flex-col shadow-xl z-20">
         <div className="p-6 border-b border-slate-700">
-          <h1 className="text-xl font-bold tracking-tight text-blue-400">Campus AI</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-lg">C</div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Campus AI</h1>
+          </div>
+          <p className="text-xs text-slate-400">
             {user ? `Halo, ${user.name.split(' ')[0]}` : 'Mode Tamu'}
           </p>
         </div>
@@ -55,22 +75,32 @@ function App() {
               <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
               <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
             </svg>
-            <span>Data Dashboard</span>
+            <span>Data & API Docs</span>
           </button>
         </nav>
 
         {/* Status Panel */}
-        <div className="p-4 bg-slate-800 text-xs text-slate-400">
+        <div className="p-4 bg-slate-800 text-xs text-slate-400 border-t border-slate-700">
            {user ? (
-             <div>
-               <p className="font-bold text-green-400">● Online</p>
-               <p>{user.role === 'student' ? 'Mahasiswa' : 'Dosen'}</p>
-               <p>ID: {user.identifier}</p>
+             <div className="space-y-2">
+               <div className="flex items-center gap-2">
+                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                 <span className="font-bold text-green-400">Online</span>
+               </div>
+               <p className="uppercase tracking-wide opacity-70 text-[10px]">{user.role}</p>
+               <p className="font-mono bg-slate-900 p-1 rounded text-center">{user.identifier}</p>
+               
+               <button 
+                onClick={handleLogout}
+                className="w-full mt-2 bg-red-500/20 text-red-400 py-1 rounded hover:bg-red-500 hover:text-white transition"
+               >
+                 Logout
+               </button>
              </div>
            ) : (
-             <div>
-               <p className="font-bold text-yellow-400">● Offline (Guest)</p>
-               <p>Silakan login via chat</p>
+             <div className="flex items-center gap-2">
+               <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+               <span className="font-bold text-yellow-400">Offline (Guest)</span>
              </div>
            )}
         </div>

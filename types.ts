@@ -7,6 +7,7 @@ export interface Student {
   semester: number;
   gpa: number;
   email: string;
+  origin: string; // Kota Asal (New for Analysis)
 }
 
 export interface Lecturer {
