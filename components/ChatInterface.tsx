@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, MockDatabase, UserSession, ChartData, GeneratedFile } from '../types';
 import { generateAIResponse } from '../services/geminiService';
@@ -211,8 +210,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
         }
       } else {
         // Welcome text untuk Guest (Tamu) - LEBIH LENGKAP
-        welcomeText = `🤖 **Halo! Saya Campus AI Nexus.**\n`;
-        welcomeText += `Asisten Cerdas Universitas Teknologi Masa Depan.\n\n`;
+        welcomeText = `🤖 **Halo! Saya L.**\n`;
+        welcomeText += `AI Asisten Kampus Universitas Teknologi Masa Depan.\n\n`;
         welcomeText += `Fitur Publik (Tanpa Login):\n`;
         welcomeText += `🏢 **Info Kampus**: Denah Gedung, Sejarah, Fakultas.\n`;
         welcomeText += `📋 **Pendaftaran (PMB)**: Syarat masuk, Cara daftar.\n`;

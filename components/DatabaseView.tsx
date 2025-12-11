@@ -21,7 +21,7 @@ const TableCard: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
 const APIDocs: React.FC = () => (
   <div className="space-y-6">
     <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 rounded-lg text-white shadow-lg">
-      <h2 className="text-2xl font-bold mb-2">Campus Public API (SDK)</h2>
+      <h2 className="text-2xl font-bold mb-2">AI Asisten Kampus Public API (SDK)</h2>
       <p className="opacity-90">
         Dokumentasi untuk developer eksternal. Sistem ini mendukung **Headless AI Integration**, di mana logika kecerdasan bot ini dapat dipanggil oleh aplikasi lain (Web Fakultas, Mobile App, dll).
       </p>
