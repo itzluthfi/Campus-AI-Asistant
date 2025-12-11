@@ -1,3 +1,4 @@
+
 export interface Student {
   id: string;
   nim: string;
@@ -105,6 +106,26 @@ export interface Facility {
   capacity: number;
 }
 
+// --- NEW ENHANCEMENTS (SKRIPSI COMPLEXITY) ---
+
+export interface Scholarship {
+  id: string;
+  name: string;
+  provider: string; // e.g., "Kemdikbud", "Djarum", "Yayasan Alumni"
+  amount: number; // Per semester
+  min_gpa: number;
+  status: 'OPEN' | 'CLOSED';
+  quota: number;
+}
+
+export interface Organization {
+  id: string;
+  name: string; // e.g., "BEM", "UKM Robotik"
+  category: 'Akademik' | 'Olahraga' | 'Seni' | 'Sosial';
+  chairman: string;
+  description: string;
+}
+
 export interface MockDatabase {
   students: Student[];
   lecturers: Lecturer[];
@@ -117,6 +138,8 @@ export interface MockDatabase {
   salaries: Salary[]; // New
   attendance: Attendance[]; // New
   facilities: Facility[]; // New
+  scholarships: Scholarship[]; // New
+  organizations: Organization[]; // New
 }
 
 export interface ChartData {

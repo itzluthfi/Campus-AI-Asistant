@@ -1,3 +1,4 @@
+
 import { MockDatabase } from "../types";
 
 export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
@@ -16,6 +17,8 @@ export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
   else if (lowerQuery.includes('salaries')) tableName = 'salaries';
   else if (lowerQuery.includes('attendance')) tableName = 'attendance';
   else if (lowerQuery.includes('facilities')) tableName = 'facilities';
+  else if (lowerQuery.includes('scholarships')) tableName = 'scholarships'; // NEW
+  else if (lowerQuery.includes('organizations')) tableName = 'organizations'; // NEW
   else return [{ error: `Tabel tidak ditemukan dalam query: ${query}` }];
 
   const tableData = (db as any)[tableName] as any[];
@@ -48,6 +51,19 @@ export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
             const cleanCol = col.trim();
             const cleanVal = valRaw.trim().replace(/['"]/g, '');
             return String(item[cleanCol]).toLowerCase() === cleanVal.toLowerCase();
+          }
+          // Handling numeric comparison for GPA or Amount (Basic implementation)
+          if (cond.includes('>')) {
+             const [col, valRaw] = cond.split('>');
+             const cleanCol = col.trim();
+             const cleanVal = parseFloat(valRaw.trim());
+             return Number(item[cleanCol]) > cleanVal;
+          }
+          if (cond.includes('<')) {
+             const [col, valRaw] = cond.split('<');
+             const cleanCol = col.trim();
+             const cleanVal = parseFloat(valRaw.trim());
+             return Number(item[cleanCol]) < cleanVal;
           }
           return true;
         });

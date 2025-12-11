@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, MockDatabase, UserSession, ChartData } from '../types';
 import { generateAIResponse } from '../services/geminiService';
@@ -58,6 +59,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [showThinking, setShowThinking] = useState(true); // Default true
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +68,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
     if (messages.length === 0) {
       const welcomeText = user 
         ? `Selamat datang kembali, **${user.name}**! \nSesi Anda telah dipulihkan. Ada yang bisa saya bantu terkait ${user.role === 'student' ? 'nilai/SPP' : 'gaji/absensi'} hari ini?`
-        : `Halo! Saya **Campus AI Nexus**.\n\nSaya dapat membantu:\n🎓 **Mahasiswa**: Nilai, Jadwal, SPP.\n👔 **Pegawai/Dosen**: Cek Gaji, Absensi.\n🏫 **Info Umum**: Denah Gedung, Cara Pendaftaran.\n\nKetik "login" untuk akses fitur personal.`;
+        : `Halo! Saya **Campus AI Nexus**.\n\nSaya dapat membantu:\n🎓 **Mahasiswa**: Nilai, Jadwal, SPP.\n👔 **Pegawai/Dosen**: Cek Gaji, Absensi.\n🏫 **Info Umum**: Denah Gedung, Cara Pendaftaran, Beasiswa.\n\nKetik "login" untuk akses fitur personal.`;
         
       setMessages([
         {
@@ -77,7 +79,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
         }
       ]);
     }
-  }, [user]); // Re-run if user restores from session
+  }, [user]); 
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -175,7 +177,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
     // --- INTERCEPTOR: AUTHENTICATION ---
     if (user && (userText.toLowerCase() === 'logout' || userText.toLowerCase() === 'keluar')) {
       setUser(null);
-      clearSession(); // Hapus sesi
+      clearSession(); 
       setAuthStep('IDLE');
       setIsLoading(false);
       setTimeout(() => addBotMessage("Anda telah logout. Kembali ke mode Tamu."), 500);
@@ -210,7 +212,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           if (foundUser) role = 'lecturer';
         }
 
-        // 3. Check Employee (New)
+        // 3. Check Employee
         if (!foundUser) {
           foundUser = database.employees.find(e => e.nik === tempId && e.password === password);
           if (foundUser) role = 'employee';
@@ -233,7 +235,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           };
           
           setUser(newUserSession);
-          saveSession(newUserSession, rememberMe); // SIMPAN SESI DISINI
+          saveSession(newUserSession, rememberMe);
 
           setAuthStep('IDLE');
           setTempId('');
@@ -289,8 +291,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
 
   return (
     <div className="flex flex-col h-full bg-[#e5ddd5]">
-      {/* Header handled in App.tsx now, but we keep this container clean */}
       
+      {/* HEADER BAR with TOGGLES */}
+      <div className="bg-white px-4 py-2 border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
+         <div className="flex items-center gap-2">
+           <div className={`w-2 h-2 rounded-full ${user ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+           <span className="text-xs font-semibold text-gray-600">
+             {user ? 'Connected' : 'Guest Mode'}
+           </span>
+         </div>
+         
+         <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowThinking(!showThinking)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition ${showThinking ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}
+              title="Tampilkan Proses Berpikir AI"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+              </svg>
+              <span>{showThinking ? 'Logic: ON' : 'Logic: OFF'}</span>
+            </button>
+         </div>
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundRepeat: 'repeat' }}>
         {messages.map((msg) => (
@@ -311,11 +336,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
                 <SimpleChart data={msg.chartData} />
               )}
 
-              {msg.debugLogs && msg.debugLogs.length > 0 && (
+              {/* TOGGLABLE THINKING PROCESS */}
+              {msg.debugLogs && msg.debugLogs.length > 0 && showThinking && (
                 <div className="mt-3 pt-2 border-t border-gray-100">
-                  <details className="text-[10px] text-gray-400 cursor-pointer">
-                    <summary>Proses Berpikir (Thinking...)</summary>
-                    <ul className="list-disc pl-3 mt-1 space-y-1 bg-gray-50 p-2 rounded">
+                  <details className="text-[10px] text-gray-400 cursor-pointer" open>
+                    <summary className="hover:text-gray-600 transition-colors">Proses Berpikir (Thinking...)</summary>
+                    <ul className="list-disc pl-3 mt-1 space-y-1 bg-gray-50 p-2 rounded max-h-40 overflow-y-auto scrollbar-hide">
                       {msg.debugLogs.map((log, i) => (
                         <li key={i}>{log}</li>
                       ))}
@@ -337,19 +363,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                <span className="text-xs font-semibold text-gray-600">AI sedang menganalisis...</span>
              </div>
-             <div className="text-[10px] font-mono text-gray-500 space-y-1 border-l-2 border-gray-200 pl-2">
-               {loadingLogs.map((log, i) => (
-                 <div key={i} className="animate-in fade-in slide-in-from-left-2 duration-300">
-                   &gt; {log}
-                 </div>
-               ))}
-             </div>
+             {showThinking && (
+               <div className="text-[10px] font-mono text-gray-500 space-y-1 border-l-2 border-gray-200 pl-2">
+                 {loadingLogs.map((log, i) => (
+                   <div key={i} className="animate-in fade-in slide-in-from-left-2 duration-300">
+                     &gt; {log}
+                   </div>
+                 ))}
+               </div>
+             )}
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Auth Checkbox (Only when logging in) */}
+      {/* Auth Checkbox */}
       {authStep === 'ASK_PASSWORD' && (
         <div className="px-4 py-2 bg-[#f0f0f0] flex items-center justify-center">
           <label className="flex items-center space-x-2 text-xs text-gray-600 cursor-pointer">
@@ -411,7 +439,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
             autoFocus
           />
 
-          {/* Microphone Button (Speech to Text) */}
+          {/* Microphone Button */}
           <button
             type="button"
             onClick={toggleListening}

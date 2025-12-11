@@ -1,14 +1,16 @@
-import { MockDatabase, Student, Lecturer, Course, Grade, TuitionPayment, Admin, AdmissionInfo, Employee, Salary, Attendance, Facility } from '../types';
+
+import { MockDatabase, Student, Lecturer, Course, Grade, TuitionPayment, Admin, AdmissionInfo, Employee, Salary, Attendance, Facility, Scholarship, Organization } from '../types';
 
 const MAJORS = ['Teknik Informatika', 'Sistem Informasi', 'Ilmu Komputer', 'Teknik Elektro', 'Manajemen Bisnis'];
-const FIRST_NAMES = ['Budi', 'Siti', 'Rizky', 'Dewi', 'Andi', 'Rina', 'Bayu', 'Putri', 'Dimas', 'Eka', 'Fajar', 'Gita', 'Hendra', 'Indah'];
-const LAST_NAMES = ['Santoso', 'Aminah', 'Pratama', 'Lestari', 'Kusuma', 'Wahyuni', 'Saputra', 'Wijaya', 'Nugroho', 'Hidayat', 'Utami', 'Siregar'];
-const CITIES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Makassar', 'Yogyakarta', 'Semarang', 'Denpasar', 'Palembang', 'Malang', 'Bekasi', 'Depok'];
+const FIRST_NAMES = ['Budi', 'Siti', 'Rizky', 'Dewi', 'Andi', 'Rina', 'Bayu', 'Putri', 'Dimas', 'Eka', 'Fajar', 'Gita', 'Hendra', 'Indah', 'Joko', 'Mega', 'Sari', 'Tono'];
+const LAST_NAMES = ['Santoso', 'Aminah', 'Pratama', 'Lestari', 'Kusuma', 'Wahyuni', 'Saputra', 'Wijaya', 'Nugroho', 'Hidayat', 'Utami', 'Siregar', 'Subagyo', 'Winata', 'Halim'];
+const CITIES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Makassar', 'Yogyakarta', 'Semarang', 'Denpasar', 'Palembang', 'Malang', 'Bekasi', 'Depok', 'Bogor', 'Tangerang', 'Solo'];
 
 const COURSE_NAMES = [
   'Pemrograman Web', 'Basis Data', 'Kecerdasan Buatan', 'Algoritma', 'Struktur Data', 
   'Jaringan Komputer', 'Sistem Operasi', 'Matematika Diskrit', 'Statistika', 'Etika Profesi',
-  'Pengembangan Mobile', 'Cloud Computing', 'Keamanan Siber', 'Internet of Things'
+  'Pengembangan Mobile', 'Cloud Computing', 'Keamanan Siber', 'Internet of Things', 
+  'Manajemen Proyek', 'Kewirausahaan', 'Data Mining', 'Machine Learning'
 ];
 
 const getRandomElement = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
@@ -26,6 +28,8 @@ export const generateMockDatabase = (): MockDatabase => {
   const salaries: Salary[] = [];
   const attendance: Attendance[] = [];
   const facilities: Facility[] = [];
+  const scholarships: Scholarship[] = [];
+  const organizations: Organization[] = [];
 
   // 0. Generate Admins
   admins.push({
@@ -58,7 +62,7 @@ export const generateMockDatabase = (): MockDatabase => {
   );
 
   // 2. Generate Lecturers
-  for (let i = 1; i <= 15; i++) {
+  for (let i = 1; i <= 20; i++) {
     const name = `Dr. ${getRandomElement(FIRST_NAMES)} ${getRandomElement(LAST_NAMES)}, M.Kom`;
     lecturers.push({
       id: `L${i}`,
@@ -70,9 +74,9 @@ export const generateMockDatabase = (): MockDatabase => {
     });
   }
 
-  // 3. Generate Employees (Pegawai Non-Dosen)
-  const employeeRoles = ['Staff Keuangan', 'Staff Admin Prodi', 'Teknisi Lab', 'Satpam', 'Petugas Perpustakaan'];
-  for (let i = 1; i <= 10; i++) {
+  // 3. Generate Employees
+  const employeeRoles = ['Staff Keuangan', 'Staff Admin Prodi', 'Teknisi Lab', 'Satpam', 'Petugas Perpustakaan', 'Office Boy'];
+  for (let i = 1; i <= 15; i++) {
     const name = `${getRandomElement(FIRST_NAMES)} ${getRandomElement(LAST_NAMES)}`;
     const nik = `PEG${i.toString().padStart(3, '0')}`;
     employees.push({
@@ -84,33 +88,20 @@ export const generateMockDatabase = (): MockDatabase => {
       email: `${name.split(' ')[0].toLowerCase()}@staff.univ.ac.id`
     });
 
-    // Generate Salary for this employee (Jan - March)
     ['Januari', 'Februari', 'Maret'].forEach((month, idx) => {
-      const basic = getRandomInt(3000000, 5000000);
-      const allow = getRandomInt(500000, 1500000);
+      const basic = getRandomInt(3000000, 6000000);
+      const allow = getRandomInt(500000, 2000000);
       salaries.push({
         id: `SAL${i}-${idx}`,
         employee_nik: nik,
         month: `${month} 2024`,
         basic_salary: basic,
         allowance: allow,
-        deduction: 100000, // BPJS dll
-        total: basic + allow - 100000,
+        deduction: 150000, 
+        total: basic + allow - 150000,
         status: 'DIBAYARKAN'
       });
     });
-
-    // Generate Attendance (Last 5 days)
-    for (let d = 1; d <= 5; d++) {
-      attendance.push({
-        id: `ATT${i}-${d}`,
-        employee_nik: nik,
-        date: `2024-03-0${d}`,
-        check_in: `07:${getRandomInt(45, 59)}`,
-        check_out: `17:${getRandomInt(0, 30)}`,
-        status: 'HADIR'
-      });
-    }
   }
 
   // 4. Generate Facilities
@@ -120,10 +111,29 @@ export const generateMockDatabase = (): MockDatabase => {
     { id: 'F3', code: 'LAB-KOM', name: 'Lab Komputer Dasar', type: 'LAB', location_desc: 'Gedung B Lantai 3', capacity: 40 },
     { id: 'F4', code: 'PERPUS', name: 'Perpustakaan Pusat', type: 'FASILITAS UMUM', location_desc: 'Tengah Kampus', capacity: 200 },
     { id: 'F5', code: 'KANTIN', name: 'Kantin Robotik', type: 'FASILITAS UMUM', location_desc: 'Belakang Gedung B', capacity: 150 },
-    { id: 'F6', code: 'AUDIT', name: 'Auditorium Utama', type: 'RUANG KELAS', location_desc: 'Gedung A Lantai 1', capacity: 300 }
+    { id: 'F6', code: 'AUDIT', name: 'Auditorium Utama', type: 'RUANG KELAS', location_desc: 'Gedung A Lantai 1', capacity: 300 },
+    { id: 'F7', code: 'SC', name: 'Student Center', type: 'FASILITAS UMUM', location_desc: 'Sebelah Kantin', capacity: 200 },
+    { id: 'F8', code: 'KLINIK', name: 'Klinik Kampus', type: 'FASILITAS UMUM', location_desc: 'Gedung A Lantai Dasar', capacity: 10 }
   );
 
-  // 5. Generate Courses
+  // 5. Generate Scholarships
+  scholarships.push(
+    { id: 'SCH1', name: 'Beasiswa Unggulan', provider: 'Kemdikbud', amount: 5000000, min_gpa: 3.5, status: 'OPEN', quota: 50 },
+    { id: 'SCH2', name: 'Beasiswa Djarum Plus', provider: 'Djarum Foundation', amount: 3000000, min_gpa: 3.25, status: 'CLOSED', quota: 20 },
+    { id: 'SCH3', name: 'Beasiswa Alumni', provider: 'Yayasan Alumni UTMD', amount: 2000000, min_gpa: 3.0, status: 'OPEN', quota: 100 },
+    { id: 'SCH4', name: 'Beasiswa Kurang Mampu', provider: 'Kampus', amount: 4000000, min_gpa: 2.75, status: 'OPEN', quota: 200 }
+  );
+
+  // 6. Generate Organizations
+  organizations.push(
+    { id: 'ORG1', name: 'BEM Universitas', category: 'Akademik', chairman: 'Budi Santoso', description: 'Badan Eksekutif Mahasiswa Tingkat Universitas' },
+    { id: 'ORG2', name: 'UKM Robotik', category: 'Akademik', chairman: 'Rizky Pratama', description: 'Komunitas pecinta robotika dan AI' },
+    { id: 'ORG3', name: 'UKM Futsal', category: 'Olahraga', chairman: 'Dimas Anggara', description: 'Tim Futsal kebanggaan kampus' },
+    { id: 'ORG4', name: 'Paduan Suara', category: 'Seni', chairman: 'Siti Aminah', description: 'Kelompok paduan suara mahasiswa' },
+    { id: 'ORG5', name: 'Mapala (Pecinta Alam)', category: 'Sosial', chairman: 'Bayu Skak', description: 'Kegiatan outdoor dan pelestarian alam' }
+  );
+
+  // 7. Generate Courses
   COURSE_NAMES.forEach((cName, index) => {
     const lecturer = getRandomElement(lecturers);
     const room = getRandomElement(facilities.filter(f => f.type === 'RUANG KELAS' || f.type === 'LAB'));
@@ -139,23 +149,27 @@ export const generateMockDatabase = (): MockDatabase => {
     });
   });
 
-  // 6. Generate Students
-  for (let i = 1; i <= 100; i++) {
+  // 8. Generate Students (Expanded to 300)
+  for (let i = 1; i <= 300; i++) {
     const firstName = getRandomElement(FIRST_NAMES);
     const lastName = getRandomElement(LAST_NAMES);
     const nim = `2024${i.toString().padStart(3, '0')}`;
     const semester = getRandomInt(1, 8);
+    const major = getRandomElement(MAJORS);
     
+    // Logic: IPK related to semester slightly random
+    const gpa = parseFloat((Math.random() * (4.0 - 2.0) + 2.0).toFixed(2));
+
     students.push({
       id: `S${i}`,
       nim: nim,
       name: `${firstName} ${lastName}`,
       password: '123',
-      major: getRandomElement(MAJORS),
+      major: major,
       semester: semester,
-      gpa: parseFloat((Math.random() * (4.0 - 2.5) + 2.5).toFixed(2)),
+      gpa: gpa,
       email: `${firstName.toLowerCase()}.${nim}@student.univ.ac.id`,
-      origin: getRandomElement(CITIES) // Assign random city
+      origin: getRandomElement(CITIES)
     });
 
     // Grades
@@ -173,12 +187,17 @@ export const generateMockDatabase = (): MockDatabase => {
     // Tuition
     for (let s = 1; s <= semester; s++) {
       const isCurrentSemester = s === semester;
-      const status = isCurrentSemester ? getRandomElement(['LUNAS', 'BELUM LUNAS']) : 'LUNAS';
+      const status = isCurrentSemester ? getRandomElement(['LUNAS', 'BELUM LUNAS', 'MENUNGGU KONFIRMASI']) : 'LUNAS';
+      // UKT varies by Major (logic simulasi)
+      let ukt = 4000000;
+      if (major.includes('Teknik')) ukt = 5000000;
+      if (major.includes('Sistem')) ukt = 4500000;
+
       tuition_payments.push({
         id: `T${tuition_payments.length + 1}`,
         student_nim: nim,
         semester: s,
-        amount: 5000000,
+        amount: ukt,
         status: status,
         due_date: new Date(2024, (s * 6) % 12, 10).toISOString().split('T')[0],
         paid_date: status === 'LUNAS' ? new Date(2024, (s * 6) % 12, 5).toISOString().split('T')[0] : undefined
@@ -186,5 +205,5 @@ export const generateMockDatabase = (): MockDatabase => {
     }
   }
 
-  return { students, lecturers, admins, employees, courses, grades, tuition_payments, admissions, salaries, attendance, facilities };
+  return { students, lecturers, admins, employees, courses, grades, tuition_payments, admissions, salaries, attendance, facilities, scholarships, organizations };
 };

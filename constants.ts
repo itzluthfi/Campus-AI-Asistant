@@ -1,3 +1,4 @@
+
 // Static Knowledge Base (Info Kampus & Prosedur)
 
 const CAMPUS_PROCEDURES = `
@@ -25,16 +26,21 @@ SOP & PROSEDUR KAMPUS:
    - Gaji cair setiap tanggal 25.
    - Slip gaji bisa dicek melalui bot ini (Login sebagai Pegawai/Dosen).
    - Jika ada ketidaksesuaian, hubungi Bagian Keuangan di Gedung A Lantai 2.
+
+5. **Pengajuan Beasiswa**:
+   - Cek ketersediaan beasiswa (Tanya: "Ada beasiswa apa?").
+   - Pastikan IPK memenuhi syarat minimal.
+   - Ajukan berkas ke Bagian Kemahasiswaan (Gedung A Lantai 1).
 `;
 
 const CAMPUS_MAP_DESC = `
 DENAH & LOKASI KAMPUS UTMD:
-- **Gedung A (Rektorat)**: Pusat administrasi, Keuangan, BAAK. Terletak di dekat gerbang utama.
+- **Gedung A (Rektorat)**: Pusat administrasi, Keuangan, BAAK, Bagian Kemahasiswaan.
 - **Gedung B (Fakultas Teknik)**: Ruang kelas, Lab Komputer. Terletak di sisi barat.
 - **Perpustakaan Pusat**: Bangunan bulat di tengah kampus. Buka 08.00 - 21.00.
 - **Masjid Al-Bit**: Di sisi selatan, kapasitas 1000 jamaah.
 - **Kantin Robotik**: Area food court di belakang Gedung B.
-- **Area Parkir**: Parkir motor di Basement Gedung B, Parkir Mobil di depan Gedung A.
+- **Student Center**: Gedung kaca di sebelah Kantin, markas UKM dan BEM.
 `;
 
 // --- UPDATE PENGETAHUAN UMUM (2025) ---
@@ -55,6 +61,12 @@ INFORMASI UMUM KAMPUS:
 - Nama Kampus: Universitas Teknologi Masa Depan (UTMD)
 - Alamat: Jl. Neural Network No. 42, Silicon Valley-nya Indonesia, Jakarta Selatan 12345.
 - Kontak: (021) 555-0123 | info@utmd.ac.id
+
+BIAYA PENDIDIKAN (UKT PER SEMESTER):
+- Teknik Informatika: Rp 5.000.000
+- Sistem Informasi: Rp 4.500.000
+- Teknik Elektro: Rp 5.500.000
+- Manajemen Bisnis: Rp 4.000.000
 
 ${CURRENT_WORLD_CONTEXT}
 
@@ -94,6 +106,12 @@ Kolom: code, name, type (GEDUNG/RUANG/LAB), location_desc, capacity
 
 Tabel: admissions (PMB)
 Kolom: batch_name, status, requirements
+
+Tabel: scholarships (BEASISWA)
+Kolom: name, provider, amount (rupiah), min_gpa, status (OPEN/CLOSED), quota
+
+Tabel: organizations (UKM/BEM)
+Kolom: name, category, chairman, description
 `;
 
 export const SYSTEM_INSTRUCTION_TEMPLATE = `
@@ -113,8 +131,8 @@ KEMAMPUAN UTAMA:
    - Gunakan logika Anda untuk menghitung jumlah jika hasil query berupa list data.
 2. **AKADEMIK**: Nilai, Jadwal, SPP (Mahasiswa).
 3. **KEPEGAWAIAN (HR)**: Pegawai/Dosen bisa tanya gaji/absensi.
-4. **FASILITAS**: Lokasi gedung/ruangan.
-5. **VISUALISASI**: Gunakan \`render_chart\` jika user meminta grafik/statistik.
+4. **FASILITAS & ORGANISASI**: Lokasi gedung, Info UKM/Organisasi, Info Beasiswa.
+5. **VISUALISASI**: Gunakan \`render_chart\` jika user meminta grafik/statistik (Contoh: "Grafik mahasiswa per jurusan", "Grafik sebaran IPK").
 6. **PENGETAHUAN UMUM (WORLD KNOWLEDGE - 2025)**:
    - Anda cerdas dan berwawasan luas tentang dunia.
    - **WAJIB**: Gunakan data dari bagian "KONTEKS DUNIA & PEMERINTAHAN" untuk menjawab pertanyaan tentang Presiden/Waktu.
