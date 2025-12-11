@@ -1,5 +1,7 @@
 {
   "name": "Campus AI Asistant",
   "description": "Prototipe Asisten AI Kampus yang terhubung dengan simulasi database akademik menggunakan Gemini API.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
