@@ -2,11 +2,11 @@
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import { MockDatabase, UserSession, ChartData, GeneratedFile } from "../types";
 import { SYSTEM_INSTRUCTION_TEMPLATE } from "../constants";
-import { executeMockSQL } from "./queryEngine";
+import { executeMockSQL, executeMockTransaction } from "./queryEngine";
 
 const sqlToolDeclaration: FunctionDeclaration = {
   name: "execute_sql_query",
-  description: "Menjalankan query SQL SELECT. Gunakan untuk mengambil data.",
+  description: "Menjalankan query SQL SELECT. Gunakan untuk mengambil data (Read-Only).",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -19,29 +19,40 @@ const sqlToolDeclaration: FunctionDeclaration = {
   },
 };
 
-const chartToolDeclaration: FunctionDeclaration = {
-  name: "render_chart",
-  description: "Menampilkan grafik visual atau diagram. Gunakan ini untuk pertanyaan statistik atau alur proses.",
+const manageDataToolDeclaration: FunctionDeclaration = {
+  name: "manage_data",
+  description: "Melakukan operasi perubahan data (INSERT/UPDATE) seperti Absensi atau Update Profil.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      title: { type: Type.STRING, description: "Judul Grafik" },
-      type: { type: Type.STRING, enum: ["bar", "pie", "flowchart"], description: "Jenis visualisasi. Gunakan 'flowchart' untuk diagram alur/langkah." },
-      labels: { 
-        type: Type.ARRAY, 
-        items: { type: Type.STRING },
-        description: "Label untuk sumbu X (Kategori) atau Langkah Diagram"
+      action: { 
+        type: Type.STRING, 
+        enum: ["CLOCK_IN", "CLOCK_OUT", "UPDATE_PROFILE"],
+        description: "Jenis aksi yang dilakukan." 
       },
-      values: { 
-        type: Type.ARRAY, 
-        items: { type: Type.NUMBER },
-        description: "Nilai data untuk sumbu Y (Angka). Kosongkan jika type='flowchart'."
-      },
-      steps: {
-         type: Type.ARRAY,
-         items: { type: Type.STRING },
-         description: "Deskripsi detail untuk flowchart. Gunakan ini jika type='flowchart'."
+      parameters: {
+        type: Type.OBJECT,
+        description: "Parameter tambahan jika diperlukan (misal data baru)",
+        properties: {
+           notes: { type: Type.STRING }
+        }
       }
+    },
+    required: ["action"],
+  },
+};
+
+const chartToolDeclaration: FunctionDeclaration = {
+  name: "render_chart",
+  description: "Menampilkan grafik visual atau diagram.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING },
+      type: { type: Type.STRING, enum: ["bar", "pie", "flowchart"] },
+      labels: { type: Type.ARRAY, items: { type: Type.STRING } },
+      values: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+      steps: { type: Type.ARRAY, items: { type: Type.STRING } }
     },
     required: ["title", "type"],
   },
@@ -49,13 +60,13 @@ const chartToolDeclaration: FunctionDeclaration = {
 
 const fileToolDeclaration: FunctionDeclaration = {
   name: "create_file",
-  description: "Membuat file unduhan (Excel/CSV/Laporan) untuk user.",
+  description: "Membuat file unduhan (Excel/CSV/Laporan).",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      filename: { type: Type.STRING, description: "Nama file beserta ekstensinya (contoh: data_mahasiswa.csv)" },
-      content: { type: Type.STRING, description: "Isi file. Jika CSV, pastikan format comma-separated valuenya benar." },
-      mimeType: { type: Type.STRING, enum: ["text/csv", "text/plain", "text/markdown", "application/json"], description: "Tipe MIME file." }
+      filename: { type: Type.STRING },
+      content: { type: Type.STRING },
+      mimeType: { type: Type.STRING, enum: ["text/csv", "text/plain", "text/markdown", "application/json"] }
     },
     required: ["filename", "content", "mimeType"],
   },
@@ -66,7 +77,7 @@ export const generateAIResponse = async (
   databaseContext: MockDatabase,
   chatHistory: { role: string; parts: { text?: string; inlineData?: any }[] }[],
   user: UserSession | null,
-  fileData?: { data: string; mimeType: string }, // Updated to generic file
+  fileData?: { data: string; mimeType: string }, 
   onLogUpdate?: (log: string) => void
 ): Promise<{ text: string; chart?: ChartData; file?: GeneratedFile; logs: string[] }> => {
   const logs: string[] = [];
@@ -95,11 +106,11 @@ export const generateAIResponse = async (
     personalizedInstruction += `\n[WAKTU SAAT INI]\n${new Date().toLocaleString('id-ID')}\n`;
 
     const chat = ai.chats.create({
-      model: 'gemini-2.5-flash', // Supports PDF and Multimodal
+      model: 'gemini-2.5-flash',
       config: {
         systemInstruction: personalizedInstruction,
         temperature: 0.2, 
-        tools: [{ functionDeclarations: [sqlToolDeclaration, chartToolDeclaration, fileToolDeclaration] }], 
+        tools: [{ functionDeclarations: [sqlToolDeclaration, manageDataToolDeclaration, chartToolDeclaration, fileToolDeclaration] }], 
       },
       history: chatHistory.map(msg => ({
         role: msg.role,
@@ -119,7 +130,6 @@ export const generateAIResponse = async (
           data: base64Clean 
         } 
       });
-      // Jika prompt kosong saat upload file, beri prompt default
       if (!prompt.trim()) {
         messagePayload[0].text = "Analisis file ini dan buat rangkuman singkat.";
       }
@@ -139,18 +149,17 @@ export const generateAIResponse = async (
       const functionResponses = [];
 
       for (const call of response.functionCalls) {
+        // --- HANDLER: READ DATA (SQL) ---
         if (call.name === 'execute_sql_query') {
           const sqlQuery = (call.args as any).query;
-          addLog(`Mengeksekusi Query Database: ${sqlQuery}`);
+          addLog(`🔍 Executing SELECT: ${sqlQuery}`);
           
-          // PASSING USER KE ENGINE UNTUK VALIDASI
           const sqlResult = executeMockSQL(sqlQuery, databaseContext, user);
           
-          // Jika access denied, log errornya
           if (sqlResult[0]?.error && sqlResult[0].error.includes("ACCESS_DENIED")) {
              addLog(`⛔ BLOCKED: ${sqlResult[0].error}`);
           } else {
-             addLog(`Hasil Query: ${JSON.stringify(sqlResult).substring(0, 50)}...`);
+             addLog(`✅ Result: Found ${sqlResult.length} rows`);
           }
 
           functionResponses.push({
@@ -161,43 +170,59 @@ export const generateAIResponse = async (
             }
           });
         } 
+        // --- HANDLER: WRITE DATA (TRANSACTION) ---
+        else if (call.name === 'manage_data') {
+           const action = (call.args as any).action;
+           const params = (call.args as any).parameters;
+           addLog(`📝 Executing Transaction: ${action}`);
+
+           const transactionResult = executeMockTransaction(action, params, databaseContext, user);
+           
+           if (transactionResult.status === 'SUCCESS') {
+             addLog(`✅ Success: ${transactionResult.message.split('\n')[0]}`);
+           } else {
+             addLog(`❌ Failed: ${transactionResult.message}`);
+           }
+
+           functionResponses.push({
+            functionResponse: {
+              name: 'manage_data',
+              id: call.id,
+              response: { result: transactionResult }
+            }
+          });
+        }
+        // --- HANDLER: VISUALIZATION ---
         else if (call.name === 'render_chart') {
-          addLog("Membuat Visualisasi Grafik/Diagram...");
+          addLog("📊 Rendering Chart...");
           const args = call.args as any;
           
-          // Normalisasi data chart
           finalChartData = {
             title: args.title,
             type: args.type,
             labels: args.labels || [],
             values: args.values || [],
-            steps: args.steps || args.labels // Fallback for flowchart
+            steps: args.steps || args.labels 
           };
           
           functionResponses.push({
             functionResponse: {
               name: 'render_chart',
               id: call.id,
-              response: { status: "Chart/Diagram rendered successfully on frontend." }
+              response: { status: "Chart rendered." }
             }
           });
         }
+        // --- HANDLER: FILE CREATION ---
         else if (call.name === 'create_file') {
-          // CEK ROLE JUGA UNTUK CREATE FILE
-          if (!user && (call.args as any).filename.includes("karyawan")) {
-             // Basic heuristic block for creating sensitive files
-             // Tapi logic utamanya sudah di block di execute_sql_query. 
-             // Kalau SQL nya gagal, dia ga akan punya data buat create file.
-          }
-
-          addLog("Membuat File Unduhan...");
+          addLog("💾 Creating File...");
           finalFileData = call.args as unknown as GeneratedFile;
           
           functionResponses.push({
             functionResponse: {
               name: 'create_file',
               id: call.id,
-              response: { status: "File created successfully." }
+              response: { status: "File created." }
             }
           });
         }
