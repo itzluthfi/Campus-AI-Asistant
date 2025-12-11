@@ -1,4 +1,4 @@
-import { MockDatabase } from '../types';
+import { MockDatabase, UserSession } from '../types';
 import { executeMockSQL } from './queryEngine';
 import { generateAIResponse } from './geminiService';
 
@@ -22,9 +22,18 @@ export const initializePublicSDK = (db: MockDatabase) => {
       if (apiKey !== 'skripsi-secret-key-2024') {
         return { status: 401, error: 'Unauthorized: Invalid API Key' };
       }
+
+      // Create a privileged session for SDK access since API Key is valid
+      const sdkUser: UserSession = {
+        id: 'SDK-SYSTEM',
+        role: 'admin',
+        name: 'External SDK User',
+        identifier: 'SDK'
+      };
+
       return {
         status: 200,
-        data: executeMockSQL(sqlQuery, db),
+        data: executeMockSQL(sqlQuery, db, sdkUser),
         timestamp: new Date().toISOString()
       };
     },

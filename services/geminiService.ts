@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
-import { MockDatabase, UserSession, ChartData } from "../types";
+import { MockDatabase, UserSession, ChartData, GeneratedFile } from "../types";
 import { SYSTEM_INSTRUCTION_TEMPLATE } from "../constants";
 import { executeMockSQL } from "./queryEngine";
 
@@ -20,24 +21,43 @@ const sqlToolDeclaration: FunctionDeclaration = {
 
 const chartToolDeclaration: FunctionDeclaration = {
   name: "render_chart",
-  description: "Menampilkan grafik visual (Bar Chart) ke user. Gunakan ini untuk pertanyaan statistik.",
+  description: "Menampilkan grafik visual atau diagram. Gunakan ini untuk pertanyaan statistik atau alur proses.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       title: { type: Type.STRING, description: "Judul Grafik" },
-      type: { type: Type.STRING, enum: ["bar", "pie"], description: "Jenis grafik" },
+      type: { type: Type.STRING, enum: ["bar", "pie", "flowchart"], description: "Jenis visualisasi. Gunakan 'flowchart' untuk diagram alur/langkah." },
       labels: { 
         type: Type.ARRAY, 
         items: { type: Type.STRING },
-        description: "Label untuk sumbu X (Kategori)"
+        description: "Label untuk sumbu X (Kategori) atau Langkah Diagram"
       },
       values: { 
         type: Type.ARRAY, 
         items: { type: Type.NUMBER },
-        description: "Nilai data untuk sumbu Y (Angka)"
+        description: "Nilai data untuk sumbu Y (Angka). Kosongkan jika type='flowchart'."
+      },
+      steps: {
+         type: Type.ARRAY,
+         items: { type: Type.STRING },
+         description: "Deskripsi detail untuk flowchart. Gunakan ini jika type='flowchart'."
       }
     },
-    required: ["title", "labels", "values", "type"],
+    required: ["title", "type"],
+  },
+};
+
+const fileToolDeclaration: FunctionDeclaration = {
+  name: "create_file",
+  description: "Membuat file unduhan (Excel/CSV/Laporan) untuk user.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      filename: { type: Type.STRING, description: "Nama file beserta ekstensinya (contoh: data_mahasiswa.csv)" },
+      content: { type: Type.STRING, description: "Isi file. Jika CSV, pastikan format comma-separated valuenya benar." },
+      mimeType: { type: Type.STRING, enum: ["text/csv", "text/plain", "text/markdown", "application/json"], description: "Tipe MIME file." }
+    },
+    required: ["filename", "content", "mimeType"],
   },
 };
 
@@ -46,9 +66,9 @@ export const generateAIResponse = async (
   databaseContext: MockDatabase,
   chatHistory: { role: string; parts: { text?: string; inlineData?: any }[] }[],
   user: UserSession | null,
-  imageBase64?: string,
-  onLogUpdate?: (log: string) => void // Callback untuk update UI logs
-): Promise<{ text: string; chart?: ChartData; logs: string[] }> => {
+  fileData?: { data: string; mimeType: string }, // Updated to generic file
+  onLogUpdate?: (log: string) => void
+): Promise<{ text: string; chart?: ChartData; file?: GeneratedFile; logs: string[] }> => {
   const logs: string[] = [];
   const addLog = (msg: string) => {
     console.log(`[AI] ${msg}`);
@@ -75,11 +95,11 @@ export const generateAIResponse = async (
     personalizedInstruction += `\n[WAKTU SAAT INI]\n${new Date().toLocaleString('id-ID')}\n`;
 
     const chat = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash', // Supports PDF and Multimodal
       config: {
         systemInstruction: personalizedInstruction,
-        temperature: 0.2, // Lebih rendah agar lebih presisi baca data/gambar
-        tools: [{ functionDeclarations: [sqlToolDeclaration, chartToolDeclaration] }], 
+        temperature: 0.2, 
+        tools: [{ functionDeclarations: [sqlToolDeclaration, chartToolDeclaration, fileToolDeclaration] }], 
       },
       history: chatHistory.map(msg => ({
         role: msg.role,
@@ -88,15 +108,21 @@ export const generateAIResponse = async (
     });
 
     // Message Payload
-    let messagePayload: any = { text: prompt };
-    if (imageBase64) {
-      addLog("Menganalisis gambar (OCR & Vision)...");
-      const mimeType = imageBase64.substring(imageBase64.indexOf(":") + 1, imageBase64.indexOf(";"));
-      const data = imageBase64.split(",")[1];
-      messagePayload = [
-        { text: prompt || "Analisis gambar ini dan ekstrak informasinya." },
-        { inlineData: { mimeType, data } }
-      ];
+    let messagePayload: any[] = [{ text: prompt }];
+    
+    if (fileData) {
+      addLog(`Menganalisis file: ${fileData.mimeType}...`);
+      const base64Clean = fileData.data.split(",")[1];
+      messagePayload.push({ 
+        inlineData: { 
+          mimeType: fileData.mimeType, 
+          data: base64Clean 
+        } 
+      });
+      // Jika prompt kosong saat upload file, beri prompt default
+      if (!prompt.trim()) {
+        messagePayload[0].text = "Analisis file ini dan buat rangkuman singkat.";
+      }
     } else {
       addLog("Memproses input teks...");
     }
@@ -104,6 +130,7 @@ export const generateAIResponse = async (
     // Step 1: Initial Request
     let response = await chat.sendMessage({ message: messagePayload });
     let finalChartData: ChartData | undefined = undefined;
+    let finalFileData: GeneratedFile | undefined = undefined;
 
     // Multi-step Loop
     let maxSteps = 5;
@@ -116,8 +143,15 @@ export const generateAIResponse = async (
           const sqlQuery = (call.args as any).query;
           addLog(`Mengeksekusi Query Database: ${sqlQuery}`);
           
-          const sqlResult = executeMockSQL(sqlQuery, databaseContext);
-          addLog(`Hasil Query: ${JSON.stringify(sqlResult).substring(0, 50)}...`);
+          // PASSING USER KE ENGINE UNTUK VALIDASI
+          const sqlResult = executeMockSQL(sqlQuery, databaseContext, user);
+          
+          // Jika access denied, log errornya
+          if (sqlResult[0]?.error && sqlResult[0].error.includes("ACCESS_DENIED")) {
+             addLog(`⛔ BLOCKED: ${sqlResult[0].error}`);
+          } else {
+             addLog(`Hasil Query: ${JSON.stringify(sqlResult).substring(0, 50)}...`);
+          }
 
           functionResponses.push({
             functionResponse: {
@@ -128,15 +162,42 @@ export const generateAIResponse = async (
           });
         } 
         else if (call.name === 'render_chart') {
-          addLog("Membuat Visualisasi Grafik...");
-          finalChartData = call.args as unknown as ChartData;
+          addLog("Membuat Visualisasi Grafik/Diagram...");
+          const args = call.args as any;
           
-          // Return success to AI so it can wrap up the text
+          // Normalisasi data chart
+          finalChartData = {
+            title: args.title,
+            type: args.type,
+            labels: args.labels || [],
+            values: args.values || [],
+            steps: args.steps || args.labels // Fallback for flowchart
+          };
+          
           functionResponses.push({
             functionResponse: {
               name: 'render_chart',
               id: call.id,
-              response: { status: "Chart rendered successfully on frontend." }
+              response: { status: "Chart/Diagram rendered successfully on frontend." }
+            }
+          });
+        }
+        else if (call.name === 'create_file') {
+          // CEK ROLE JUGA UNTUK CREATE FILE
+          if (!user && (call.args as any).filename.includes("karyawan")) {
+             // Basic heuristic block for creating sensitive files
+             // Tapi logic utamanya sudah di block di execute_sql_query. 
+             // Kalau SQL nya gagal, dia ga akan punya data buat create file.
+          }
+
+          addLog("Membuat File Unduhan...");
+          finalFileData = call.args as unknown as GeneratedFile;
+          
+          functionResponses.push({
+            functionResponse: {
+              name: 'create_file',
+              id: call.id,
+              response: { status: "File created successfully." }
             }
           });
         }
@@ -149,8 +210,9 @@ export const generateAIResponse = async (
 
     addLog("Menyusun jawaban akhir...");
     return {
-      text: response.text || "Tidak ada respon teks.",
+      text: response.text || "Berikut hasilnya.",
       chart: finalChartData,
+      file: finalFileData,
       logs: logs
     };
 

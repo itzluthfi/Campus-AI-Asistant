@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, MockDatabase, UserSession, ChartData } from '../types';
+import { ChatMessage, MockDatabase, UserSession, ChartData, GeneratedFile } from '../types';
 import { generateAIResponse } from '../services/geminiService';
 import { saveSession, clearSession } from '../utils/storage';
 
@@ -20,34 +20,153 @@ declare global {
   }
 }
 
-const SimpleChart: React.FC<{ data: ChartData }> = ({ data }) => {
-  const maxValue = Math.max(...data.values);
+// --- COMPONENTS: CHARTS & DIAGRAMS ---
+
+const ChartComponent: React.FC<{ data: ChartData }> = ({ data }) => {
+  if (data.type === 'flowchart') {
+    return (
+      <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 shadow-sm w-full max-w-md">
+        <h4 className="text-center font-bold text-gray-700 mb-4 text-sm uppercase border-b pb-2">{data.title}</h4>
+        <div className="flex flex-col gap-2">
+           {data.labels.map((step, idx) => (
+             <div key={idx} className="flex items-center">
+                <div className="flex-none flex flex-col items-center mr-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md z-10">
+                    {idx + 1}
+                  </div>
+                  {idx < data.labels.length - 1 && <div className="h-6 w-0.5 bg-gray-300 my-1"></div>}
+                </div>
+                <div className="flex-1 bg-blue-50 p-2 rounded text-sm text-gray-700 border border-blue-100 shadow-sm">
+                   <p className="font-semibold">{step}</p>
+                   {data.steps && data.steps[idx] && step !== data.steps[idx] && (
+                     <p className="text-xs text-gray-500 mt-1">{data.steps[idx]}</p>
+                   )}
+                </div>
+             </div>
+           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // BAR CHART
+  if (data.type === 'bar') {
+    const maxValue = Math.max(...(data.values || [0]));
+    const safeMax = maxValue === 0 ? 1 : maxValue; // Prevent divide by zero
+
+    return (
+      <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 shadow-sm w-full max-w-md">
+        <h4 className="text-center font-bold text-gray-700 mb-4 text-sm uppercase">{data.title}</h4>
+        <div className="flex items-end justify-center space-x-3 h-48 pb-2 border-b border-gray-300">
+          {data.values.map((val, idx) => (
+            <div key={idx} className="flex flex-col items-center group relative flex-1">
+               <span className="absolute -top-6 text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                 {val}
+               </span>
+               <div 
+                 className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t hover:from-blue-600 hover:to-blue-500 transition-all duration-500 shadow-sm min-h-[1px]"
+                 style={{ height: `${(val / safeMax) * 100}%` }}
+               ></div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center space-x-3 mt-2">
+          {data.labels.map((label, idx) => (
+            <div key={idx} className="text-[10px] text-gray-500 flex-1 text-center truncate" title={label}>
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // PIE CHART
+  if (data.type === 'pie') {
+    const total = data.values.reduce((a, b) => a + b, 0);
+    let cumulativePercent = 0;
+    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
+    
+    const gradientString = data.values.map((val, idx) => {
+        const percent = (val / total) * 100;
+        const start = cumulativePercent;
+        cumulativePercent += percent;
+        return `${colors[idx % colors.length]} ${start}% ${cumulativePercent}%`;
+    }).join(', ');
+
+    return (
+      <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 shadow-sm w-full max-w-md flex flex-col items-center">
+        <h4 className="text-center font-bold text-gray-700 mb-4 text-sm uppercase">{data.title}</h4>
+        <div className="flex items-center gap-6">
+           {/* The Pie */}
+           <div 
+             className="w-32 h-32 rounded-full shadow-inner"
+             style={{ background: `conic-gradient(${gradientString})` }}
+           ></div>
+           {/* Legend */}
+           <div className="flex flex-col gap-1">
+             {data.labels.map((label, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs text-gray-600">
+                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }}></div>
+                   <span>{label} ({Math.round((data.values[idx] / total) * 100)}%)</span>
+                </div>
+             ))}
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// --- COMPONENT: FILE DOWNLOAD CARD ---
+
+const FileDownloadCard: React.FC<{ file: GeneratedFile }> = ({ file }) => {
+  const handleDownload = () => {
+    // Determine Blob Type
+    let mimeType = file.mimeType;
+    if (!mimeType) mimeType = 'text/plain';
+
+    // Create Blob
+    const blob = new Blob([file.content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    
+    // Trigger Download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200 shadow-sm w-full max-w-md">
-      <h4 className="text-center font-bold text-gray-700 mb-4 text-sm uppercase">{data.title}</h4>
-      <div className="flex items-end justify-center space-x-2 h-40 pb-2 border-b border-gray-300">
-        {data.values.map((val, idx) => (
-          <div key={idx} className="flex flex-col items-center group relative w-1/5">
-             <span className="absolute -top-6 text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-               {val}
-             </span>
-             <div 
-               className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-all duration-500"
-               style={{ height: `${(val / maxValue) * 100}%` }}
-             ></div>
-          </div>
-        ))}
+    <div className="mt-3 p-3 bg-white border-l-4 border-green-500 rounded shadow-sm flex items-center justify-between max-w-sm">
+      <div className="flex items-center gap-3">
+         <div className="bg-green-100 p-2 rounded text-green-600">
+           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+             <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a1.875 1.875 0 01-1.875-1.875V5.25A3.75 3.75 0 009 1.5H5.625zM7.5 15a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 017.5 15zm.75 2.25a.75.75 0 000 1.5H12a.75.75 0 000-1.5H8.25z" clipRule="evenodd" />
+             <path d="M12.971 1.816A5.23 5.23 0 0114.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 013.434 1.279 9.768 9.768 0 00-6.963-6.963z" />
+           </svg>
+         </div>
+         <div>
+           <p className="font-bold text-gray-800 text-sm">{file.filename}</p>
+           <p className="text-xs text-gray-500">Siap diunduh</p>
+         </div>
       </div>
-      <div className="flex justify-center space-x-2 mt-2">
-        {data.labels.map((label, idx) => (
-          <div key={idx} className="text-[10px] text-gray-500 w-1/5 text-center truncate" title={label}>
-            {label}
-          </div>
-        ))}
-      </div>
+      <button 
+        onClick={handleDownload}
+        className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition"
+      >
+        Download
+      </button>
     </div>
   );
 };
+
+// --- MAIN CHAT INTERFACE ---
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -56,19 +175,59 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
   const [loadingLogs, setLoadingLogs] = useState<string[]>([]);
   const [authStep, setAuthStep] = useState<AuthStep>('IDLE');
   const [tempId, setTempId] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  // File State
+  const [selectedFile, setSelectedFile] = useState<{ name: string; type: string; data: string } | null>(null);
+  
   const [rememberMe, setRememberMe] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [showThinking, setShowThinking] = useState(true); // Default true
+  const [showThinking, setShowThinking] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (messages.length === 0) {
-      const welcomeText = user 
-        ? `Selamat datang kembali, **${user.name}**! \nSesi Anda telah dipulihkan. Ada yang bisa saya bantu terkait ${user.role === 'student' ? 'nilai/SPP' : 'gaji/absensi'} hari ini?`
-        : `Halo! Saya **Campus AI Nexus**.\n\nSaya dapat membantu:\n🎓 **Mahasiswa**: Nilai, Jadwal, SPP.\n👔 **Pegawai/Dosen**: Cek Gaji, Absensi.\n🏫 **Info Umum**: Denah Gedung, Cara Pendaftaran, Beasiswa.\n\nKetik "login" untuk akses fitur personal.`;
+      let welcomeText = "";
+
+      if (user) {
+        // Welcome text untuk user yang sudah login
+        welcomeText = `👋 **Selamat datang kembali, ${user.name}!**\n\n`;
+        welcomeText += `Anda login sebagai: **${user.role.toUpperCase()}**\n\n`;
+        
+        if (user.role === 'student') {
+            welcomeText += `Apa yang ingin Anda cek hari ini?\n`;
+            welcomeText += `✅ **Akademik**: "Berapa IPK saya?", "Jadwal kuliah hari ini"\n`;
+            welcomeText += `✅ **Keuangan**: "Status SPP semester ini"\n`;
+            welcomeText += `✅ **Surat**: "Buatkan surat cuti akademik"`;
+        } else if (user.role === 'employee' || user.role === 'lecturer') {
+            welcomeText += `Menu Staf:\n`;
+            welcomeText += `💼 **HR**: "Cek slip gaji bulan lalu", "Rekap absensi saya"\n`;
+            welcomeText += `📅 **Jadwal**: "Jadwal mengajar minggu ini"`;
+        } else if (user.role === 'admin') {
+            welcomeText += `⚠️ **ADMIN MODE AKTIF**\n`;
+            welcomeText += `Anda memiliki akses penuh ke seluruh database.\n`;
+            welcomeText += `Cobalah: "Buatkan laporan gaji seluruh pegawai dalam Excel" atau "Grafik sebaran IPK mahasiswa".`;
+        }
+      } else {
+        // Welcome text untuk Guest (Tamu) - LEBIH LENGKAP
+        welcomeText = `🤖 **Halo! Saya Campus AI Nexus.**\n`;
+        welcomeText += `Asisten Cerdas Universitas Teknologi Masa Depan.\n\n`;
+        welcomeText += `Fitur Publik (Tanpa Login):\n`;
+        welcomeText += `🏢 **Info Kampus**: Denah Gedung, Sejarah, Fakultas.\n`;
+        welcomeText += `📋 **Pendaftaran (PMB)**: Syarat masuk, Cara daftar.\n`;
+        welcomeText += `💰 **Beasiswa**: Info beasiswa terbaru.\n`;
+        welcomeText += `🏫 **Organisasi**: Daftar UKM dan kegiatan mahasiswa.\n\n`;
+        
+        welcomeText += `🔒 **Fitur Terkunci (Perlu Login):**\n`;
+        welcomeText += `Ketik "Login" untuk mengakses:\n`;
+        welcomeText += `- Nilai & Transkrip Akademik\n`;
+        welcomeText += `- Pembayaran SPP\n`;
+        welcomeText += `- Slip Gaji (Karyawan/Dosen)\n`;
+        welcomeText += `- Absensi & Jadwal Personal\n\n`;
+        
+        welcomeText += `*Silakan tanya sesuatu atau ketik "Login" untuk masuk.*`;
+      }
         
       setMessages([
         {
@@ -85,24 +244,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loadingLogs]);
 
-  const addBotMessage = (text: string, chart?: ChartData, logs?: string[]) => {
+  const addBotMessage = (text: string, chart?: ChartData, file?: GeneratedFile, logs?: string[]) => {
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'model',
       text,
       chartData: chart,
+      generatedFile: file,
       debugLogs: logs,
       timestamp: new Date()
     }]);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
+        setSelectedFile({
+          name: file.name,
+          type: file.type,
+          data: reader.result as string
+        });
       };
+      // Read as Data URL (Base64) for both images and PDFs
       reader.readAsDataURL(file);
     }
   };
@@ -156,21 +321,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if ((!input.trim() && !selectedImage) || isLoading) return;
+    if ((!input.trim() && !selectedFile) || isLoading) return;
 
     const userText = input.trim();
-    const userImage = selectedImage;
+    const currentFile = selectedFile; // Capture current file ref
     
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'user',
-      text: userText,
-      image: userImage || undefined,
+      text: userText || (currentFile ? `Mengirim file: ${currentFile.name}` : ""),
+      // If it's an image, show it in chat bubble
+      image: (currentFile && currentFile.type.startsWith('image/')) ? currentFile.data : undefined, 
       timestamp: new Date()
     }]);
     
     setInput('');
-    setSelectedImage(null);
+    setSelectedFile(null); // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    
     setIsLoading(true);
     setLoadingLogs([]);
 
@@ -203,22 +371,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
         let foundUser: any = null;
         let role: 'student' | 'lecturer' | 'admin' | 'employee' = 'student';
 
-        // 1. Check Student
+        // Auth Logic (Same as before)
         foundUser = database.students.find(s => s.nim === tempId && s.password === password);
-        
-        // 2. Check Lecturer
         if (!foundUser) {
           foundUser = database.lecturers.find(l => l.nip === tempId && l.password === password);
           if (foundUser) role = 'lecturer';
         }
-
-        // 3. Check Employee
         if (!foundUser) {
           foundUser = database.employees.find(e => e.nik === tempId && e.password === password);
           if (foundUser) role = 'employee';
         }
-
-        // 4. Check Admin
         if (!foundUser) {
           foundUser = database.admins.find(a => a.username === tempId && a.password === password);
           if (foundUser) role = 'admin';
@@ -233,10 +395,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
                         (role === 'lecturer' ? foundUser.nip : 
                         (role === 'employee' ? foundUser.nik : foundUser.username))
           };
-          
           setUser(newUserSession);
           saveSession(newUserSession, rememberMe);
-
           setAuthStep('IDLE');
           setTempId('');
           setIsLoading(false);
@@ -265,18 +425,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           return { role: m.role, parts: parts };
         });
 
+        const filePayload = currentFile ? { data: currentFile.data, mimeType: currentFile.type } : undefined;
+
         const result = await generateAIResponse(
           userText, 
           database, 
           history, 
           user, 
-          userImage || undefined,
+          filePayload,
           (log) => setLoadingLogs(prev => [...prev, log])
         );
 
-        addBotMessage(result.text, result.chart, result.logs);
+        addBotMessage(result.text, result.chart, result.file, result.logs);
       }
     } catch (error) {
+      console.error(error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'model',
@@ -292,7 +455,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
   return (
     <div className="flex flex-col h-full bg-[#e5ddd5]">
       
-      {/* HEADER BAR with TOGGLES */}
+      {/* HEADER BAR */}
       <div className="bg-white px-4 py-2 border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
          <div className="flex items-center gap-2">
            <div className={`w-2 h-2 rounded-full ${user ? 'bg-green-500' : 'bg-gray-400'}`}></div>
@@ -316,14 +479,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
          </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundRepeat: 'repeat' }}>
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-             <div className={`max-w-[85%] rounded-lg px-4 py-2 shadow-sm text-sm ${
+             <div className={`max-w-[90%] md:max-w-[85%] rounded-lg px-4 py-2 shadow-sm text-sm ${
               msg.role === 'user' ? 'bg-[#dcf8c6] text-gray-800 rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none'
             } ${msg.isError ? 'border border-red-500' : ''}`}>
               
+              {/* Image Bubble */}
               {msg.image && (
                 <div className="mb-2">
                   <img src={msg.image} alt="User upload" className="max-w-full h-auto rounded-lg" />
@@ -332,11 +496,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
               
               <div className="whitespace-pre-wrap">{msg.text}</div>
               
+              {/* Charts & Diagrams */}
               {msg.chartData && (
-                <SimpleChart data={msg.chartData} />
+                <ChartComponent data={msg.chartData} />
               )}
 
-              {/* TOGGLABLE THINKING PROCESS */}
+              {/* Generated Files */}
+              {msg.generatedFile && (
+                <FileDownloadCard file={msg.generatedFile} />
+              )}
+
+              {/* Thinking Process Logs */}
               {msg.debugLogs && msg.debugLogs.length > 0 && showThinking && (
                 <div className="mt-3 pt-2 border-t border-gray-100">
                   <details className="text-[10px] text-gray-400 cursor-pointer" open>
@@ -377,27 +547,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Auth Checkbox */}
-      {authStep === 'ASK_PASSWORD' && (
-        <div className="px-4 py-2 bg-[#f0f0f0] flex items-center justify-center">
-          <label className="flex items-center space-x-2 text-xs text-gray-600 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={rememberMe} 
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="form-checkbox rounded text-[#128c7e] focus:ring-[#128c7e]" 
-            />
-            <span>Remember Me (Tetap Login)</span>
-          </label>
-        </div>
-      )}
-
-      {/* Input */}
+      {/* Input Area */}
       <div className="bg-[#f0f0f0] p-2 md:p-3">
-        {selectedImage && (
+        {selectedFile && (
           <div className="mb-2 px-4 relative w-fit">
-             <img src={selectedImage} alt="Preview" className="h-20 rounded-md border border-gray-300" />
-             <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">
+             <div className="h-16 px-4 bg-white border border-gray-300 rounded-md flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-600 truncate max-w-[150px]">{selectedFile.name}</span>
+                <span className="text-[10px] text-gray-400 uppercase border px-1 rounded">{selectedFile.type.split('/')[1] || 'FILE'}</span>
+             </div>
+             <button onClick={() => setSelectedFile(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">
                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
                  <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
                </svg>
@@ -405,13 +563,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           </div>
         )}
         <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-          {/* File Upload */}
+          {/* File Upload (Universal: Image/PDF/CSV) */}
           <button 
             type="button" 
             onClick={() => fileInputRef.current?.click()}
             className="p-3 text-gray-500 hover:text-[#128c7e]"
             disabled={isLoading}
-            title="Kirim Foto Dokumen"
+            title="Kirim File (Gambar, PDF, Excel)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
               <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.006.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z" clipRule="evenodd" />
@@ -420,8 +578,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={handleImageSelect} 
-            accept="image/*" 
+            onChange={handleFileSelect} 
+            accept="image/*,application/pdf,text/csv,text/plain" 
             className="hidden" 
           />
           
@@ -432,14 +590,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
             placeholder={
               authStep === 'ASK_PASSWORD' 
                 ? "Masukkan Password..." 
-                : (user ? (isListening ? "Mendengarkan..." : "Ketik pesan...") : "Tanya sesuatu...")
+                : (user ? (isListening ? "Mendengarkan..." : "Ketik / Kirim file...") : "Tanya sesuatu...")
             }
             className={`flex-1 rounded-full border-none px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#128c7e] text-sm bg-white ${isListening ? 'ring-2 ring-red-500 bg-red-50' : ''}`}
             disabled={isLoading}
             autoFocus
           />
 
-          {/* Microphone Button */}
           <button
             type="button"
             onClick={toggleListening}
@@ -453,7 +610,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
             </svg>
           </button>
 
-          <button type="submit" disabled={isLoading || (!input.trim() && !selectedImage)} className="bg-[#128c7e] text-white rounded-full p-3 disabled:opacity-50">
+          <button type="submit" disabled={isLoading || (!input.trim() && !selectedFile)} className="bg-[#128c7e] text-white rounded-full p-3 disabled:opacity-50">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
               <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
             </svg>

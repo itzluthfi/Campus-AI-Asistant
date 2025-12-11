@@ -143,10 +143,17 @@ export interface MockDatabase {
 }
 
 export interface ChartData {
-  type: 'bar' | 'pie';
+  type: 'bar' | 'pie' | 'flowchart'; // Added flowchart
   title: string;
   labels: string[];
-  values: number[];
+  values: number[]; // For Bar/Pie
+  steps?: string[]; // For Flowchart/Diagram
+}
+
+export interface GeneratedFile {
+  filename: string;
+  content: string; // Base64 or raw string
+  mimeType: 'text/csv' | 'text/plain' | 'text/markdown' | 'application/json';
 }
 
 export interface ChatMessage {
@@ -157,6 +164,7 @@ export interface ChatMessage {
   isError?: boolean;
   image?: string; // Base64 string untuk gambar
   chartData?: ChartData; // Jika bot ingin menampilkan grafik
+  generatedFile?: GeneratedFile; // Jika bot membuat file
   debugLogs?: string[]; // Untuk "Explainable AI" (menunjukkan proses berpikir)
 }
 

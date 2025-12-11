@@ -1,12 +1,16 @@
 
-import { MockDatabase } from "../types";
+import { MockDatabase, UserSession } from "../types";
 
-export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
+// ============================================================================
+// OPSI 1: MOCK ENGINE (CLIENT SIDE - SAAT INI DIPAKAI)
+// Menerjemahkan SQL Query menjadi filter Javascript Array.
+// ============================================================================
+export const executeMockSQL = (query: string, db: MockDatabase, user: UserSession | null): any[] => {
   const normalizedQuery = query.trim().replace(/;/g, '');
   const lowerQuery = normalizedQuery.toLowerCase();
   let tableName = '';
   
-  // Deteksi tabel (Updated with new modules)
+  // Deteksi tabel
   if (lowerQuery.includes('students')) tableName = 'students';
   else if (lowerQuery.includes('lecturers')) tableName = 'lecturers';
   else if (lowerQuery.includes('employees')) tableName = 'employees';
@@ -17,9 +21,36 @@ export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
   else if (lowerQuery.includes('salaries')) tableName = 'salaries';
   else if (lowerQuery.includes('attendance')) tableName = 'attendance';
   else if (lowerQuery.includes('facilities')) tableName = 'facilities';
-  else if (lowerQuery.includes('scholarships')) tableName = 'scholarships'; // NEW
-  else if (lowerQuery.includes('organizations')) tableName = 'organizations'; // NEW
+  else if (lowerQuery.includes('scholarships')) tableName = 'scholarships';
+  else if (lowerQuery.includes('organizations')) tableName = 'organizations';
   else return [{ error: `Tabel tidak ditemukan dalam query: ${query}` }];
+
+  // --- SECURITY LAYER (MOCK FIREWALL) ---
+  // Mencegah Guest mengambil data sensitif meskipun AI "tertipu" untuk melakukan query.
+  
+  const PUBLIC_TABLES = ['courses', 'facilities', 'admissions', 'scholarships', 'organizations'];
+  const SENSITIVE_TABLES = ['employees', 'salaries', 'students', 'grades', 'tuition_payments', 'lecturers', 'attendance'];
+
+  const role = user ? user.role : 'guest';
+
+  if (role === 'guest') {
+    if (SENSITIVE_TABLES.includes(tableName)) {
+      return [{ 
+        error: `ACCESS_DENIED: User Guest tidak memiliki izin akses ke tabel '${tableName}'. Silakan Login.` 
+      }];
+    }
+  }
+
+  // Khusus Student tidak boleh akses data Gaji/Pegawai
+  if (role === 'student') {
+    if (['employees', 'salaries', 'attendance'].includes(tableName)) {
+      return [{ 
+        error: `ACCESS_DENIED: Mahasiswa tidak memiliki izin akses ke data Kepegawaian.` 
+      }];
+    }
+  }
+
+  // --- END SECURITY LAYER ---
 
   const tableData = (db as any)[tableName] as any[];
   const SAFETY_LIMIT = 100; 
@@ -52,7 +83,7 @@ export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
             const cleanVal = valRaw.trim().replace(/['"]/g, '');
             return String(item[cleanCol]).toLowerCase() === cleanVal.toLowerCase();
           }
-          // Handling numeric comparison for GPA or Amount (Basic implementation)
+          // Handling numeric comparison for GPA or Amount
           if (cond.includes('>')) {
              const [col, valRaw] = cond.split('>');
              const cleanCol = col.trim();

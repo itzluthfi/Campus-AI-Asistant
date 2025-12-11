@@ -1,6 +1,159 @@
 
 import { MockDatabase, Student, Lecturer, Course, Grade, TuitionPayment, Admin, AdmissionInfo, Employee, Salary, Attendance, Facility, Scholarship, Organization } from '../types';
 
+// ==================================================================================
+// 📘 PANDUAN MIGRASI KE DATABASE ASLI (REAL DATABASE MIGRATION GUIDE)
+// ==================================================================================
+/*
+   Aplikasi ini saat ini berjalan dalam mode "Client-Side Prototype" menggunakan data palsu (Mock Data).
+   Jika Anda ingin menghubungkan aplikasi ini ke Database Asli (MySQL/PostgreSQL) dengan Laravel/Node.js,
+   Ikuti panduan di bawah ini.
+
+   ----------------------------------------------------------------------------------
+   SKENARIO A: MEMBUAT DATABASE BARU (FRESH INSTALL)
+   Gunakan Query SQL berikut di phpMyAdmin / DBeaver untuk membuat struktur tabel:
+   ----------------------------------------------------------------------------------
+
+   CREATE DATABASE campus_ai_db;
+   USE campus_ai_db;
+
+   -- 1. Tabel Mahasiswa
+   CREATE TABLE students (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       nim VARCHAR(20) UNIQUE NOT NULL,
+       name VARCHAR(100) NOT NULL,
+       password VARCHAR(255) NOT NULL, -- Di production gunakan Hash (Bcrypt)
+       major VARCHAR(50),
+       semester INT,
+       gpa DECIMAL(3,2),
+       email VARCHAR(100),
+       origin VARCHAR(50)
+   );
+
+   -- 2. Tabel Dosen
+   CREATE TABLE lecturers (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       nip VARCHAR(20) UNIQUE NOT NULL,
+       name VARCHAR(100) NOT NULL,
+       department VARCHAR(50),
+       email VARCHAR(100)
+   );
+
+   -- 3. Tabel Pegawai (HR)
+   CREATE TABLE employees (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       nik VARCHAR(20) UNIQUE NOT NULL,
+       name VARCHAR(100) NOT NULL,
+       position VARCHAR(50),
+       email VARCHAR(100)
+   );
+
+   -- 4. Tabel Mata Kuliah
+   CREATE TABLE courses (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       code VARCHAR(20) UNIQUE NOT NULL,
+       name VARCHAR(100) NOT NULL,
+       lecturer_nip VARCHAR(20),
+       day VARCHAR(20),
+       time VARCHAR(20),
+       room VARCHAR(50),
+       sks INT,
+       FOREIGN KEY (lecturer_nip) REFERENCES lecturers(nip)
+   );
+
+   -- 5. Tabel Nilai
+   CREATE TABLE grades (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       student_nim VARCHAR(20),
+       course_code VARCHAR(20),
+       grade CHAR(2),
+       semester INT,
+       FOREIGN KEY (student_nim) REFERENCES students(nim),
+       FOREIGN KEY (course_code) REFERENCES courses(code)
+   );
+
+   -- 6. Tabel Pembayaran SPP
+   CREATE TABLE tuition_payments (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       student_nim VARCHAR(20),
+       semester INT,
+       amount DECIMAL(15,2),
+       status ENUM('LUNAS', 'BELUM LUNAS', 'MENUNGGU KONFIRMASI'),
+       due_date DATE,
+       paid_date DATE,
+       FOREIGN KEY (student_nim) REFERENCES students(nim)
+   );
+
+   -- 7. Tabel Gaji Pegawai
+   CREATE TABLE salaries (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       employee_nik VARCHAR(20),
+       month VARCHAR(20), -- Format: "Januari 2024"
+       basic_salary DECIMAL(15,2),
+       allowance DECIMAL(15,2),
+       deduction DECIMAL(15,2),
+       total DECIMAL(15,2),
+       status ENUM('DIBAYARKAN', 'PROSES'),
+       FOREIGN KEY (employee_nik) REFERENCES employees(nik)
+   );
+
+   -- 8. Tabel Absensi
+   CREATE TABLE attendance (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       employee_nik VARCHAR(20),
+       date DATE,
+       check_in TIME,
+       check_out TIME,
+       status ENUM('HADIR', 'IZIN', 'SAKIT', 'ALPHA'),
+       FOREIGN KEY (employee_nik) REFERENCES employees(nik)
+   );
+
+   -- 9. Tabel Beasiswa (New)
+   CREATE TABLE scholarships (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       name VARCHAR(100),
+       provider VARCHAR(100),
+       amount DECIMAL(15,2),
+       min_gpa DECIMAL(3,2),
+       status ENUM('OPEN', 'CLOSED'),
+       quota INT
+   );
+
+   -- 10. Tabel Organisasi (New)
+   CREATE TABLE organizations (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       name VARCHAR(100),
+       category VARCHAR(50),
+       chairman VARCHAR(100),
+       description TEXT
+   );
+
+   ----------------------------------------------------------------------------------
+   SKENARIO B: MENGHUBUNGKAN KE DATABASE EXISTING (YANG SUDAH ADA)
+   Jika kampus sudah punya database sendiri (misal: MySQL di server Laravel), lakukan langkah ini:
+   ----------------------------------------------------------------------------------
+
+   1. **Siapkan API Backend (Laravel/Express/Go)**
+      React App ini tidak bisa konek langsung ke MySQL (Security risk). Anda butuh perantara (API).
+      Buat endpoint: `POST /api/ai-query` di backend Anda.
+   
+   2. **Daftarkan Struktur Tabel (Mapping)**
+      Buka file `constants.ts` di folder frontend ini.
+      Update variable `DATABASE_SCHEMA` agar sesuai dengan nama tabel & kolom di database asli Anda.
+      Contoh: Jika di DB asli nama tabelnya `tbl_mahasiswa`, maka di constants.ts tulis `Tabel: tbl_mahasiswa`.
+
+   3. **Ganti Logic Query Engine**
+      Buka file `services/queryEngine.ts`.
+      Matikan fungsi `executeMockSQL` dan aktifkan fungsi `executeRealDatabaseQuery` (lihat komentar di file tersebut).
+      Fungsi itu akan mengirim string SQL dari AI ke Backend Anda.
+
+   4. **Handling Read-Only**
+      Pastikan user database yang dipakai oleh Backend hanya punya akses `SELECT`. 
+      Jangan beri akses `INSERT/UPDATE/DELETE` agar AI tidak tidak sengaja menghapus data kampus.
+
+*/
+// ==================================================================================
+
 const MAJORS = ['Teknik Informatika', 'Sistem Informasi', 'Ilmu Komputer', 'Teknik Elektro', 'Manajemen Bisnis'];
 const FIRST_NAMES = ['Budi', 'Siti', 'Rizky', 'Dewi', 'Andi', 'Rina', 'Bayu', 'Putri', 'Dimas', 'Eka', 'Fajar', 'Gita', 'Hendra', 'Indah', 'Joko', 'Mega', 'Sari', 'Tono'];
 const LAST_NAMES = ['Santoso', 'Aminah', 'Pratama', 'Lestari', 'Kusuma', 'Wahyuni', 'Saputra', 'Wijaya', 'Nugroho', 'Hidayat', 'Utami', 'Siregar', 'Subagyo', 'Winata', 'Halim'];
