@@ -23,23 +23,64 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
   else if (lowerQuery.includes('organizations')) tableName = 'organizations';
   else return [{ error: `Tabel tidak ditemukan dalam query: ${query}` }];
 
-  // --- SECURITY LAYER (MOCK FIREWALL) ---
+  // --- SECURITY LAYER 1: TABLE LEVEL ACCESS CONTROL ---
   const PUBLIC_TABLES = ['courses', 'facilities', 'admissions', 'scholarships', 'organizations'];
   const SENSITIVE_TABLES = ['employees', 'salaries', 'students', 'grades', 'tuition_payments', 'lecturers', 'attendance'];
 
   const role = user ? user.role : 'guest';
+  const userId = user ? user.identifier : null;
 
-  // Validasi Role
+  // 1. Guest Restrictions
   if (role === 'guest' && SENSITIVE_TABLES.includes(tableName)) {
     return [{ error: `ACCESS_DENIED: User Guest tidak memiliki izin akses ke tabel '${tableName}'. Silakan Login.` }];
   }
+
+  // 2. Student Restrictions
   if (role === 'student' && ['employees', 'salaries', 'attendance'].includes(tableName)) {
-    return [{ error: `ACCESS_DENIED: Mahasiswa tidak memiliki izin akses ke data Kepegawaian.` }];
+    return [{ error: `ACCESS_DENIED: Mahasiswa tidak memiliki izin akses ke data Kepegawaian (HR).` }];
   }
-  // --- END SECURITY LAYER ---
+
+  // 3. Employee Restrictions (Cannot see student financial data/grades directly usually, unless academic staff, but kept simple here)
+  // (Optional: Add specific restrictions for employees viewing student data if needed)
+
+  // --- END SECURITY LAYER 1 ---
 
   const tableData = (db as any)[tableName] as any[];
   const SAFETY_LIMIT = 100; 
+
+  // --- SECURITY LAYER 2: ROW LEVEL SECURITY (RLS) ---
+  // Filter data SEBELUM query diproses (WHERE clause user).
+  // Ini memastikan user tidak bisa "mengakali" WHERE clause untuk melihat data orang lain.
+  
+  let rlsFilteredData = tableData;
+
+  if (role !== 'admin') {
+    // A. Aturan untuk Mahasiswa
+    if (role === 'student') {
+      if (tableName === 'grades') {
+        // Mahasiswa HANYA boleh melihat nilai miliknya sendiri
+        rlsFilteredData = tableData.filter(row => row.student_nim === userId);
+      }
+      if (tableName === 'tuition_payments') {
+        // Mahasiswa HANYA boleh melihat SPP miliknya sendiri
+        rlsFilteredData = tableData.filter(row => row.student_nim === userId);
+      }
+      // Note: Tabel 'students' dibiarkan terbuka sebagai direktori teman, tapi password akan dimask.
+    }
+
+    // B. Aturan untuk Pegawai & Dosen
+    if (role === 'employee' || role === 'lecturer') {
+      if (tableName === 'salaries') {
+        // Pegawai HANYA boleh melihat gaji miliknya sendiri
+        rlsFilteredData = tableData.filter(row => row.employee_nik === userId);
+      }
+      if (tableName === 'attendance') {
+        // Pegawai HANYA boleh melihat absensi miliknya sendiri
+        rlsFilteredData = tableData.filter(row => row.employee_nik === userId);
+      }
+    }
+  }
+  // --- END SECURITY LAYER 2 ---
 
   try {
     let wherePart = "";
@@ -49,11 +90,12 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
        if (wherePart.includes('order by')) wherePart = wherePart.split('order by')[0].trim();
     }
     
-    let filteredData = tableData;
+    // Gunakan data yang SUDAH difilter oleh RLS
+    let queryResult = rlsFilteredData;
 
     if (wherePart) {
       const conditions = wherePart.split(' and ');
-      filteredData = tableData.filter(item => {
+      queryResult = rlsFilteredData.filter(item => {
         return conditions.every(cond => {
           if (cond.includes('like')) {
             const [col, valRaw] = cond.split('like');
@@ -83,17 +125,40 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
     }
 
     if (lowerQuery.includes('count(*)')) {
-      return [{ total_rows: filteredData.length, _info: "Ini adalah hasil hitung (count)." }];
+      return [{ total_rows: queryResult.length, _info: "Ini adalah hasil hitung (count) setelah filter keamanan." }];
     }
 
-    if (filteredData.length > SAFETY_LIMIT) {
+    // --- SECURITY LAYER 3: COLUMN MASKING (PRIVACY) ---
+    // Menyensor kolom sensitif sebelum data dikembalikan ke user
+    
+    const finalData = queryResult.map((row: any) => {
+      // Clone object agar tidak mengubah database asli (pass by reference issue)
+      const safeRow = { ...row };
+
+      if (role !== 'admin') {
+        // 1. Masking Password (SELALU)
+        if (safeRow.password) safeRow.password = '********';
+
+        // 2. Masking Gaji di tabel Employees (Jika ada field gaji di profile, meski di sini dipisah ke tabel salaries)
+        // Di tabel salaries sudah di-handle oleh RLS (hanya milik sendiri), jadi aman.
+
+        // 3. Masking Data Pribadi Lain jika melihat direktori orang lain
+        if (tableName === 'students' && safeRow.nim !== userId) {
+           // Misal: menyembunyikan alamat lengkap atau no hp jika ada
+        }
+      }
+      return safeRow;
+    });
+    // --- END SECURITY LAYER 3 ---
+
+    if (finalData.length > SAFETY_LIMIT) {
        return [
-         { _system_note: `DATA TRUNCATED: Ditemukan ${filteredData.length} baris data. Sistem hanya mengambil ${SAFETY_LIMIT} data teratas.` },
-         ...filteredData.slice(0, SAFETY_LIMIT)
+         { _system_note: `DATA TRUNCATED: Ditemukan ${finalData.length} baris data. Sistem hanya mengambil ${SAFETY_LIMIT} data teratas.` },
+         ...finalData.slice(0, SAFETY_LIMIT)
        ];
     }
 
-    return filteredData;
+    return finalData;
 
   } catch (e) {
     return [{ error: "Gagal memproses filter WHERE. SQL Error." }];
