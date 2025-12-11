@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import { MockDatabase, UserSession, ChartData, GeneratedFile } from "../types";
 import { SYSTEM_INSTRUCTION_TEMPLATE } from "../constants";
@@ -91,8 +90,22 @@ export const generateAIResponse = async (
   };
 
   try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return { text: "Error: API Key tidak ditemukan.", logs };
+    // BUG FIX: Safe access to process.env
+    // In some browser environments, accessing process directly can throw if not defined.
+    let apiKey = '';
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        apiKey = process.env.API_KEY || '';
+      }
+    } catch (e) {
+      console.warn("Could not access process.env, checking if variable is injected globally...");
+    }
+
+    if (!apiKey) {
+      const errorMsg = "Error: API Key tidak ditemukan. Pastikan file .env berisi API_KEY atau environment variable telah diset.";
+      addLog(errorMsg);
+      return { text: errorMsg, logs };
+    }
 
     const ai = new GoogleGenAI({ apiKey });
 

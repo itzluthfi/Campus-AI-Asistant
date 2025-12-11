@@ -468,10 +468,44 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
         return;
       }
       if (authStep === 'ASK_ID') {
-        setTempId(userText);
-        setAuthStep('ASK_PASSWORD');
-        setIsLoading(false);
-        setTimeout(() => addBotMessage(`ID terdeteksi. Masukkan Password:`), 500);
+        // --- NEW: Check ID existence first ---
+        const inputtedId = userText;
+        let idFound = false;
+        let foundName = "";
+        let foundRole = "";
+
+        // Check in all tables
+        const s = database.students.find(x => x.nim === inputtedId);
+        if (s) { idFound = true; foundName = s.name; foundRole = "Mahasiswa"; }
+
+        if (!idFound) {
+          const l = database.lecturers.find(x => x.nip === inputtedId);
+          if (l) { idFound = true; foundName = l.name; foundRole = "Dosen"; }
+        }
+        if (!idFound) {
+           const emp = database.employees.find(x => x.nik === inputtedId);
+           if (emp) { idFound = true; foundName = emp.name; foundRole = "Pegawai"; }
+        }
+        if (!idFound) {
+           const adm = database.admins.find(x => x.username === inputtedId);
+           if (adm) { idFound = true; foundName = adm.name; foundRole = "Admin"; }
+        }
+
+        if (idFound) {
+           setTempId(inputtedId);
+           setAuthStep('ASK_PASSWORD');
+           setIsLoading(false);
+           setTimeout(() => addBotMessage(`Halo ${foundName} (${foundRole}), silakan masukkan password Anda:`), 500);
+        } else {
+           // Reject ID
+           setIsLoading(false);
+           setTimeout(() => addBotMessage("❌ ID tidak ditemukan di database. Silakan cek kembali NIM/NIP/NIK Anda dan coba lagi."), 500);
+           // Remain in ASK_ID or reset to IDLE? Let's reset to allow them to type "Login" again cleanly, or just let them retry ID.
+           // To keep UI simple, let's reset to IDLE so they have to type login again, or we can stay in loop.
+           // Let's stay in ASK_ID implicitly by NOT changing authStep, but prompt is already set to ASK_ID logic.
+           // Actually, let's reset to IDLE to provide a clean slate.
+           setAuthStep('IDLE'); 
+        }
         return;
       }
       if (authStep === 'ASK_PASSWORD') {
@@ -513,7 +547,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
           setAuthStep('IDLE');
           setTempId('');
           setIsLoading(false);
-          setTimeout(() => addBotMessage("❌ Login Gagal. ID/Password salah."), 500);
+          setTimeout(() => addBotMessage("❌ Password salah. Silakan ketik 'Login' untuk mencoba lagi."), 500);
         }
         return;
       }
@@ -698,7 +732,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ database, user, setUser }
             placeholder={
               authStep === 'ASK_PASSWORD' 
                 ? "Masukkan Password..." 
-                : (user ? (isListening ? "Mendengarkan..." : "Ketik / Kirim file...") : "Tanya sesuatu...")
+                : (user ? (isListening ? "Mendengarkan..." : "Ketik / Kirim file...") : (authStep === 'ASK_ID' ? "Masukkan NIM/NIP/NIK" : "Tanya sesuatu..."))
             }
             className={`flex-1 rounded-full border-none px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#128c7e] text-sm bg-white ${isListening ? 'ring-2 ring-red-500 bg-red-50' : ''}`}
             disabled={isLoading}
