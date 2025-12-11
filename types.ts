@@ -18,6 +18,15 @@ export interface Lecturer {
   email: string;
 }
 
+export interface Employee {
+  id: string;
+  nik: string; // Nomor Induk Karyawan
+  name: string;
+  password: string;
+  position: string; // Jabatan (e.g., Staff Keuangan, Satpam, Admin Prodi)
+  email: string;
+}
+
 export interface Admin {
   id: string;
   username: string;
@@ -64,14 +73,49 @@ export interface AdmissionInfo {
   status: 'OPEN' | 'CLOSED' | 'COMING SOON';
 }
 
+// --- NEW MODULES ---
+
+export interface Salary {
+  id: string;
+  employee_nik: string;
+  month: string; // e.g., "Januari 2024"
+  basic_salary: number;
+  allowance: number; // Tunjangan
+  deduction: number; // Potongan
+  total: number;
+  status: 'DIBAYARKAN' | 'PROSES';
+}
+
+export interface Attendance {
+  id: string;
+  employee_nik: string;
+  date: string;
+  check_in: string; // "07:55"
+  check_out: string; // "17:05"
+  status: 'HADIR' | 'IZIN' | 'SAKIT' | 'ALPHA';
+}
+
+export interface Facility {
+  id: string;
+  code: string;
+  name: string;
+  type: 'GEDUNG' | 'RUANG KELAS' | 'LAB' | 'FASILITAS UMUM';
+  location_desc: string; // e.g., "Lantai 2 Gedung A"
+  capacity: number;
+}
+
 export interface MockDatabase {
   students: Student[];
   lecturers: Lecturer[];
   admins: Admin[];
+  employees: Employee[]; // New
   courses: Course[];
   grades: Grade[];
   tuition_payments: TuitionPayment[];
   admissions: AdmissionInfo[];
+  salaries: Salary[]; // New
+  attendance: Attendance[]; // New
+  facilities: Facility[]; // New
 }
 
 export interface ChartData {
@@ -94,7 +138,7 @@ export interface ChatMessage {
 
 export interface UserSession {
   id: string;
-  role: 'student' | 'lecturer' | 'admin';
+  role: 'student' | 'lecturer' | 'admin' | 'employee';
   name: string;
-  identifier: string; // NIM, NIP, atau Username
+  identifier: string; // NIM, NIP, Username, or NIK
 }

@@ -1,24 +1,24 @@
 import { MockDatabase } from "../types";
 
 export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
-  // console.log("Executing SQL:", query);
-  
   const normalizedQuery = query.trim().replace(/;/g, '');
   const lowerQuery = normalizedQuery.toLowerCase();
   let tableName = '';
   
-  // Deteksi tabel
+  // Deteksi tabel (Updated with new modules)
   if (lowerQuery.includes('students')) tableName = 'students';
   else if (lowerQuery.includes('lecturers')) tableName = 'lecturers';
+  else if (lowerQuery.includes('employees')) tableName = 'employees';
   else if (lowerQuery.includes('courses')) tableName = 'courses';
   else if (lowerQuery.includes('grades')) tableName = 'grades';
   else if (lowerQuery.includes('tuition_payments')) tableName = 'tuition_payments';
   else if (lowerQuery.includes('admissions')) tableName = 'admissions';
+  else if (lowerQuery.includes('salaries')) tableName = 'salaries';
+  else if (lowerQuery.includes('attendance')) tableName = 'attendance';
+  else if (lowerQuery.includes('facilities')) tableName = 'facilities';
   else return [{ error: `Tabel tidak ditemukan dalam query: ${query}` }];
 
   const tableData = (db as any)[tableName] as any[];
-  
-  // UPDATE: Limit dinaikkan menjadi 100 sesuai permintaan
   const SAFETY_LIMIT = 100; 
 
   try {
@@ -66,7 +66,7 @@ export const executeMockSQL = (query: string, db: MockDatabase): any[] => {
     if (filteredData.length > SAFETY_LIMIT) {
        return [
          { 
-           _system_note: `DATA TRUNCATED: Ditemukan ${filteredData.length} baris data. Sistem hanya mengambil ${SAFETY_LIMIT} data teratas. Beri tahu user bahwa data mungkin terpotong.` 
+           _system_note: `DATA TRUNCATED: Ditemukan ${filteredData.length} baris data. Sistem hanya mengambil ${SAFETY_LIMIT} data teratas.` 
          },
          ...filteredData.slice(0, SAFETY_LIMIT)
        ];
