@@ -1,0 +1,94 @@
+import React, { useState, useEffect } from 'react';
+import DatabaseView from './components/DatabaseView';
+import ChatInterface from './components/ChatInterface';
+import { generateMockDatabase } from './utils/dataGenerator';
+import { MockDatabase, UserSession } from './types';
+
+function App() {
+  const [activeTab, setActiveTab] = useState<'database' | 'chat'>('chat');
+  const [database, setDatabase] = useState<MockDatabase | null>(null);
+  const [user, setUser] = useState<UserSession | null>(null);
+
+  // Generate Data on Mount
+  useEffect(() => {
+    const data = generateMockDatabase();
+    setDatabase(data);
+  }, []);
+
+  if (!database) return <div className="flex h-screen items-center justify-center">Loading Database...</div>;
+
+  return (
+    <div className="flex flex-col md:flex-row h-screen w-full bg-gray-100 overflow-hidden">
+      
+      <aside className="w-full md:w-64 bg-slate-900 text-white flex flex-col shadow-xl z-20">
+        <div className="p-6 border-b border-slate-700">
+          <h1 className="text-xl font-bold tracking-tight text-blue-400">Campus AI</h1>
+          <p className="text-xs text-slate-400 mt-1">
+            {user ? `Halo, ${user.name.split(' ')[0]}` : 'Mode Tamu'}
+          </p>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-2">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              activeTab === 'chat' 
+                ? 'bg-green-600 text-white shadow-lg' 
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+            </svg>
+            <span>Chat Assistant</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('database')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              activeTab === 'database' 
+                ? 'bg-blue-600 text-white shadow-lg' 
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+              <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+            </svg>
+            <span>Data Dashboard</span>
+          </button>
+        </nav>
+
+        {/* Status Panel */}
+        <div className="p-4 bg-slate-800 text-xs text-slate-400">
+           {user ? (
+             <div>
+               <p className="font-bold text-green-400">● Online</p>
+               <p>{user.role === 'student' ? 'Mahasiswa' : 'Dosen'}</p>
+               <p>ID: {user.identifier}</p>
+             </div>
+           ) : (
+             <div>
+               <p className="font-bold text-yellow-400">● Offline (Guest)</p>
+               <p>Silakan login via chat</p>
+             </div>
+           )}
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col relative overflow-hidden">
+        {activeTab === 'database' ? (
+          <DatabaseView data={database} />
+        ) : (
+          <ChatInterface 
+            database={database} 
+            user={user} 
+            setUser={setUser} 
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
