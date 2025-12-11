@@ -60,13 +60,16 @@ const chartToolDeclaration: FunctionDeclaration = {
 
 const fileToolDeclaration: FunctionDeclaration = {
   name: "create_file",
-  description: "Membuat file unduhan (Excel/CSV/Laporan).",
+  description: "Membuat file unduhan (PDF, Excel/CSV, Word, Laporan).",
   parameters: {
     type: Type.OBJECT,
     properties: {
       filename: { type: Type.STRING },
-      content: { type: Type.STRING },
-      mimeType: { type: Type.STRING, enum: ["text/csv", "text/plain", "text/markdown", "application/json"] }
+      content: { type: Type.STRING, description: "Isi file. Jika PDF, berikan JSON stringified." },
+      mimeType: { 
+        type: Type.STRING, 
+        enum: ["text/csv", "text/plain", "text/markdown", "application/json", "application/pdf", "application/msword"] 
+      }
     },
     required: ["filename", "content", "mimeType"],
   },

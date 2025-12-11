@@ -40,17 +40,12 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
     return [{ error: `ACCESS_DENIED: Mahasiswa tidak memiliki izin akses ke data Kepegawaian (HR).` }];
   }
 
-  // 3. Employee Restrictions (Cannot see student financial data/grades directly usually, unless academic staff, but kept simple here)
-  // (Optional: Add specific restrictions for employees viewing student data if needed)
-
   // --- END SECURITY LAYER 1 ---
 
   const tableData = (db as any)[tableName] as any[];
   const SAFETY_LIMIT = 100; 
 
   // --- SECURITY LAYER 2: ROW LEVEL SECURITY (RLS) ---
-  // Filter data SEBELUM query diproses (WHERE clause user).
-  // Ini memastikan user tidak bisa "mengakali" WHERE clause untuk melihat data orang lain.
   
   let rlsFilteredData = tableData;
 
@@ -65,7 +60,6 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
         // Mahasiswa HANYA boleh melihat SPP miliknya sendiri
         rlsFilteredData = tableData.filter(row => row.student_nim === userId);
       }
-      // Note: Tabel 'students' dibiarkan terbuka sebagai direktori teman, tapi password akan dimask.
     }
 
     // B. Aturan untuk Pegawai & Dosen
@@ -128,23 +122,51 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
       return [{ total_rows: queryResult.length, _info: "Ini adalah hasil hitung (count) setelah filter keamanan." }];
     }
 
-    // --- SECURITY LAYER 3: COLUMN MASKING (PRIVACY) ---
-    // Menyensor kolom sensitif sebelum data dikembalikan ke user
+    // --- ENRICHMENT LAYER (VIRTUAL JOINS) ---
+    // Agar report PDF memiliki Nama, bukan cuma ID/NIK.
     
+    queryResult = queryResult.map((row: any) => {
+       const enriched = { ...row };
+       
+       // Join Salaries -> Employee Name
+       if (tableName === 'salaries') {
+         const emp = db.employees.find(e => e.nik === row.employee_nik);
+         if (emp) {
+            enriched['nama_pegawai'] = emp.name;
+            enriched['jabatan'] = emp.position;
+         }
+       }
+       
+       // Join Attendance -> Employee Name
+       if (tableName === 'attendance') {
+         const emp = db.employees.find(e => e.nik === row.employee_nik);
+         if (emp) enriched['nama_pegawai'] = emp.name;
+       }
+
+       // Join Grades -> Course Name & Student Name (For Admin/Lecturer)
+       if (tableName === 'grades') {
+          const course = db.courses.find(c => c.code === row.course_code);
+          if (course) enriched['mata_kuliah'] = course.name;
+          
+          if (role !== 'student') {
+             const std = db.students.find(s => s.nim === row.student_nim);
+             if (std) enriched['nama_mahasiswa'] = std.name;
+          }
+       }
+
+       return enriched;
+    });
+
+    // --- SECURITY LAYER 3: COLUMN MASKING (PRIVACY) ---
     const finalData = queryResult.map((row: any) => {
-      // Clone object agar tidak mengubah database asli (pass by reference issue)
       const safeRow = { ...row };
 
       if (role !== 'admin') {
-        // 1. Masking Password (SELALU)
         if (safeRow.password) safeRow.password = '********';
-
-        // 2. Masking Gaji di tabel Employees (Jika ada field gaji di profile, meski di sini dipisah ke tabel salaries)
-        // Di tabel salaries sudah di-handle oleh RLS (hanya milik sendiri), jadi aman.
-
-        // 3. Masking Data Pribadi Lain jika melihat direktori orang lain
+        
+        // Masking Data Pribadi Lain jika melihat direktori orang lain
         if (tableName === 'students' && safeRow.nim !== userId) {
-           // Misal: menyembunyikan alamat lengkap atau no hp jika ada
+           // Masking sensitive details
         }
       }
       return safeRow;
@@ -168,7 +190,6 @@ export const executeMockSQL = (query: string, db: MockDatabase, user: UserSessio
 
 // ============================================================================
 // OPSI 2: MOCK TRANSACTION ENGINE (WRITE OPERATIONS)
-// Fitur Baru: Menangani INSERT/UPDATE Sederhana
 // ============================================================================
 export const executeMockTransaction = (
   action: 'CLOCK_IN' | 'CLOCK_OUT' | 'UPDATE_PROFILE', 
@@ -183,7 +204,6 @@ export const executeMockTransaction = (
 
   // --- 1. HANDLING ABSENSI (CLOCK_IN / CLOCK_OUT) ---
   if (action === 'CLOCK_IN' || action === 'CLOCK_OUT') {
-    // Corrected check: UserSession cannot have 'guest' role, and !user handles unauthenticated case.
     if (user.role === 'student') {
       return { status: 'ERROR', message: 'Hanya Pegawai/Dosen yang dapat melakukan absensi.' };
     }
@@ -191,7 +211,6 @@ export const executeMockTransaction = (
     const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); // HH:MM
 
-    // Cek apakah sudah absen hari ini
     const existingRecord = db.attendance.find(a => a.employee_nik === user.identifier && a.date === todayStr);
 
     if (action === 'CLOCK_IN') {
@@ -199,17 +218,15 @@ export const executeMockTransaction = (
         return { status: 'ERROR', message: `Anda sudah absen masuk hari ini pada jam ${existingRecord.check_in}.` };
       }
       
-      // Simpan Data (INSERT)
       const newRecord: Attendance = {
         id: `ATT-${Date.now()}`,
         employee_nik: user.identifier,
         date: todayStr,
         check_in: nowTime,
-        check_out: '-', // Belum pulang
+        check_out: '-', 
         status: 'HADIR'
       };
       
-      // Mutasi DB (In-Memory)
       db.attendance.push(newRecord);
       
       return { 
@@ -227,7 +244,6 @@ export const executeMockTransaction = (
         return { status: 'ERROR', message: `Anda sudah absen pulang hari ini pada jam ${existingRecord.check_out}.` };
       }
 
-      // Update Data
       existingRecord.check_out = nowTime;
 
       return {

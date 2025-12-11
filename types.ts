@@ -152,8 +152,9 @@ export interface ChartData {
 
 export interface GeneratedFile {
   filename: string;
-  content: string; // Base64 or raw string
-  mimeType: 'text/csv' | 'text/plain' | 'text/markdown' | 'application/json';
+  // Content bisa berupa string (CSV/MD) atau JSON Stringified (untuk PDF generator di frontend)
+  content: string; 
+  mimeType: 'text/csv' | 'text/plain' | 'text/markdown' | 'application/json' | 'application/pdf' | 'application/msword';
 }
 
 export interface ChatMessage {

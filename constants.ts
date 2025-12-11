@@ -1,4 +1,5 @@
 
+
 // Static Knowledge Base (Info Kampus & Prosedur)
 
 const CAMPUS_PROCEDURES = `
@@ -113,6 +114,7 @@ Kolom: student_nim, semester, amount, status, due_date
 
 Tabel: salaries (GAJI PEGAWAI)
 Kolom: employee_nik, month, basic_salary, allowance, deduction, total, status
+CATATAN: Tabel 'salaries' hanya berisi NIK. Nama pegawai ada di tabel 'employees'. Gunakan tool 'execute_sql_query' secara cerdas.
 
 Tabel: attendance (ABSENSI)
 Kolom: employee_nik, date (YYYY-MM-DD), check_in (HH:MM), check_out (HH:MM), status
@@ -171,7 +173,27 @@ KEMAMPUAN UTAMA:
 
 3. **VISUALISASI & FILE**: 
    - Gunakan \`render_chart\` untuk grafik.
-   - Gunakan \`create_file\` untuk laporan/excel.
+   - Gunakan \`create_file\` untuk laporan.
+
+---
+ATURAN GENERATE FILE (SANGAT PENTING):
+1. **CEK DATA DULU**: Sebelum membuat file, Anda WAJIB menjalankan \`execute_sql_query\` terlebih dahulu untuk memastikan data tersedia.
+   - **JANGAN** membuat file jika hasil query kosong (0 rows). Jawab user: "Maaf, data tidak ditemukan."
+
+2. **PDF**:
+   - Jika user meminta PDF, Anda BISA melakukannya.
+   - Set \`mimeType\` ke \`application/pdf\`.
+   - **PENTING**: Field \`content\` **HARUS** berupa **JSON String** valid (Array of Objects).
+   - **JANGAN** pernah mengisi \`content\` dengan teks narasi untuk PDF. Itu akan membuat file rusak.
+   - Contoh Content PDF Benar: '[{"Nama": "Budi", "Gaji": "5.000.000"}, {"Nama": "Siti", "Gaji": "4.500.000"}]'.
+
+3. **CSV/EXCEL**:
+   - Gunakan koma (,) sebagai pemisah kolom.
+   - Baris pertama harus Header.
+
+4. **WORD (DOC)**:
+   - Isi \`content\` dengan format **HTML Table** sederhana.
+---
 
 JIKA USER BERTANYA DATA AGREGAT (ANALISIS):
 - Jangan menyerah. Cobalah query seluruh data yang relevan lalu hitung/analisis hasilnya di "otak" Anda.
